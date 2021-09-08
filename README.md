@@ -10,7 +10,7 @@ It has been developed by cronologic GmbH & Co. KG to support the drivers for its
 
 However, the module could be useful to any PCIe developer who is using large buffers that are scattered in PCI space but shall look contiguous in user space. 
 
-The user mode part of the driver is available in a separate repository.
+The user mode part of the driver is available in a [separate repository](https://github.com/cronologic-de/cronologic_linux_usermode).
 
-The initial code has been written by   with support from [Richard Weinberger](https://github.com/richardweinberger). It is licensed unter [GPL3](LICENSE).
+The initial code has been written by [Bassem Ramzy](https://github.com/Bassem-Ramzy) with support from [Richard Weinberger](https://github.com/richardweinberger). It is licensed unter [GPL3](LICENSE).
 
