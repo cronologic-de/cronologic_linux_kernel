@@ -3,7 +3,7 @@
 // _____________________________________________________________________________
 
 #include <linux/miscdevice.h>
-#include "kernel_module.h"
+#include "crono_kernel_module.h"
 
 static int _crono_miscdev_type_init(
                 struct crono_device_type* dev_type, struct pci_dev *dev);

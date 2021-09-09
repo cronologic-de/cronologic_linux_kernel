@@ -1,5 +1,5 @@
 #include "crono_miscdevice.h"
-#include "kernel_module.h"
+#include "crono_kernel_module.h"
 #include "crono_ioctl.h"
 // _____________________________________________________________________________
 // Globals
@@ -8,7 +8,7 @@ MODULE_DESCRIPTION("cronologic PCI driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("0.9");
 
-// `CRONO_KERNEL_MODE` must be defined for historical reasons.
+// `CRONO_KERNEL_MODE` must be defined indicating the code runs for driver.
 // #define CRONO_KERNEL_MODE, no need to define it here as it's passed in Makefile
 
 /**

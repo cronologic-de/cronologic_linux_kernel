@@ -390,8 +390,6 @@ typedef struct
     #define BZERO(buf) memset(&(buf), 0, sizeof(buf))
 #endif
 
-CRONO_KERNEL_API const char * Stat2Str(DWORD dwStatus);
-
 #include "crono_ioctl.h"
 
 /* extracted from wdc_lib.h */
@@ -418,26 +416,6 @@ typedef struct {
                                            */
 } CRONO_KERNEL_PCI_SCAN_RESULT;
 
-/* Driver open options */
-/* Basic driver open flags */
-#define CRONO_KERNEL_DRV_OPEN_CHECK_VER 0x1 /* Compare source files WinDriver version
-                                    * with that of the running WinDriver kernel
-                                    */
-#define CRONO_KERNEL_DRV_OPEN_REG_LIC   0x2 /* Register WinDriver license */
-/* Convenient driver open options */
-#define CRONO_KERNEL_DRV_OPEN_BASIC     0x0 /* No option -> perform only the basic open
-                                      driver tasks, which are always performed
-                                      by WDC_DriverOpen (mainly - open a handle
-                                      to WinDriver) */
-#define CRONO_KERNEL_DRV_OPEN_KP CRONO_KERNEL_DRV_OPEN_BASIC /* Kernel PlugIn driver open
-                                            * options <=> basic */
-#define CRONO_KERNEL_DRV_OPEN_ALL (CRONO_KERNEL_DRV_OPEN_CHECK_VER | CRONO_KERNEL_DRV_OPEN_REG_LIC)
-#if defined(__KERNEL__)
-#define CRONO_KERNEL_DRV_OPEN_DEFAULT CRONO_KERNEL_DRV_OPEN_KP
-#else
-#define CRONO_KERNEL_DRV_OPEN_DEFAULT CRONO_KERNEL_DRV_OPEN_ALL
-#endif
-
 typedef DWORD CRONO_KERNEL_DRV_OPEN_OPTIONS;
 
 /**************************************************************
@@ -452,12 +430,7 @@ CRONO_KERNEL_API PVOID CRONO_KERNEL_GetDevContext(CRONO_KERNEL_DEVICE_HANDLE hDe
 /* -----------------------------------------------
     Open/close driver and init/uninit CRONO_KERNEL library
    ----------------------------------------------- */
-#ifdef _WIN32
-DWORD CRONO_KERNEL_DriverOpen(CRONO_KERNEL_DRV_OPEN_OPTIONS openOptions,
-    const CHAR *sLicense);
-#elif __linux__
 DWORD CRONO_KERNEL_DriverOpen(CRONO_KERNEL_DRV_OPEN_OPTIONS openOptions);
-#endif
 DWORD CRONO_KERNEL_DriverClose(void);
 
 /* -----------------------------------------------

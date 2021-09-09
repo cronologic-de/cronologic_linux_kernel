@@ -429,34 +429,6 @@ CRONO_KERNEL_API PVOID CRONO_KERNEL_GetDevContext(
     return pDevice->pCtx ;
 }
 
-// Needed code for Windows compatibility
-const char * Stat2Str(DWORD dwStatus)
-{
-    int size = 256;
-    char* message = (char*)malloc(sizeof(char)*size);
-
-    if (message != nullptr)
-    {
-        switch (dwStatus)
-        {
-/*      $$ definitions not found
-		case ERROR_IO_PENDING:
-			sprintf_s(message, sizeof(char)*size, "997 (0x3E5) - Overlapped I / O operation is in progress.");
-			break;
-		case ERROR_ACCESS_DENIED:
-			sprintf_s(message, sizeof(char)*size, "5 (0x5) - Access is denied.");
-			break;
-		case ERROR_NOACCESS:
-			sprintf_s(message, sizeof(char)*size, "998 (0x3E6) - Invalid access to memory location.");
-			break;
-*/      default:
-            sprintf_s(message, sizeof(char)*size, "%ld - see windows error codes.", dwStatus);
-            break;
-        }
-    }
-    return message;
-}
-
 CRONO_KERNEL_API DWORD CRONO_KERNEL_CardCleanupSetup(CRONO_KERNEL_DEVICE_HANDLE hDev, CRONO_KERNEL_TRANSFER *Cmd,
     DWORD dwCmds, BOOL bForceCleanup)
 {

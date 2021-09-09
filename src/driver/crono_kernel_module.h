@@ -66,10 +66,27 @@ struct crono_device_type
 } ;
 
 /**
- * Maximum Device ID value, should be synchronized with Device IDs
- * CRONO_DEVICE_xxx defined in crono_interface.h.
+* Internal driver device ID of cronologic devices based on PCI Device ID
 */
-#define CRONO_DEVICE_DEV_ID_MAX_COUNT   0x0D
+#define CRONO_DEVICE_UNKNOWN		0x0
+#define CRONO_DEVICE_HPTDC			0x1
+#define CRONO_DEVICE_NDIGO5G		0x2
+#define CRONO_DEVICE_NDIGO250M		0x4
+#define CRONO_DEVICE_NDIGO_AVRG		0x3
+#define CRONO_DEVICE_XTDC4			0x6
+#define CRONO_DEVICE_FMC_TDC10		0x7
+#define CRONO_DEVICE_TIMETAGGER4	0x8
+#define CRONO_DEVICE_D_AVE12		0x9
+#define CRONO_DEVICE_D_AVE14		0xa
+#define CRONO_DEVICE_NDIGO2G14		0xb
+#define CRONO_DEVICE_XHPTDC8		0xc
+#define CRONO_DEVICE_NDIGO6G12		0xd
+
+/**
+ * Maximum Device ID value, should be synchronized with Device IDs
+ * CRONO_DEVICE_xxx mentioned above
+*/
+#define CRONO_DEVICE_DEV_ID_MAX_COUNT   CRONO_DEVICE_NDIGO6G12
 
 static int	__init crono_driver_init(void);
 static void __exit crono_driver_exit(void);

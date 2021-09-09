@@ -29,11 +29,11 @@ KBUILD_AFLAGS 	+= -march=i386
 #
 all:
 	ln -s $(PWD)/../crono_kernel_module.c $(PWD)/crono_kernel_module.c
-	ln -s $(PWD)/../kernel_module.h $(PWD)/kernel_module.h
+	ln -s $(PWD)/../crono_kernel_module.h $(PWD)/crono_kernel_module.h
 	ln -s $(PWD)/../crono_miscdevice.h $(PWD)/crono_miscdevice.h
 	$(MAKE) -C $(KDIR) M=$(PWD) modules  ARCH=i386
 	rm $(PWD)/crono_kernel_module.c
-	rm $(PWD)/kernel_module.h
+	rm $(PWD)/crono_kernel_module.h
 	rm $(PWD)/crono_miscdevice.h
        
 clean:

@@ -17,17 +17,6 @@
 
 #define SYS_BUS_PCIDEVS_PATH "/sys/bus/pci/devices"
 
-#ifdef _WIN32 
-    // Windows (x64 and x86) 
-#elif __linux__ 
-    // linux 
-#elif __unix__ // all unices, not all compilers 
-    // Unix 
-#elif __APPLE__ 
-    // Mac O
-#endif
-// https://sourceforge.net/p/predef/wiki/Home/
-
 /**
  * Constructs the configuration file path into 'config_file_path'.
  * `config_file_path` is char [PATH_MAX], and all device attributes are unsigned.

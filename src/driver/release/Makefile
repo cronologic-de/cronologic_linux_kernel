@@ -30,13 +30,13 @@ KBUILD_AFLAGS 	+= -march=i386
 all:
 #   Create symbolic links for source files to be built in this direcotory
 	ln -s $(PWD)/../crono_kernel_module.c $(PWD)/crono_kernel_module.c
-	ln -s $(PWD)/../kernel_module.h $(PWD)/kernel_module.h
+	ln -s $(PWD)/../crono_kernel_module.h $(PWD)/crono_kernel_module.h
 	ln -s $(PWD)/../crono_miscdevice.h $(PWD)/crono_miscdevice.h
 	$(MAKE) -C $(KDIR) M=$(PWD) modules ARCH=i386
 #	cp $(TARGET).ko $(PWD)/../../../lib/x64/$(TARGET).ko
 #   Cleanup symbolic links 
 	rm $(PWD)/crono_kernel_module.c
-	rm $(PWD)/kernel_module.h
+	rm $(PWD)/crono_kernel_module.h
 	rm $(PWD)/crono_miscdevice.h
         
 clean:
