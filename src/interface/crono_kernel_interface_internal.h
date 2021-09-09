@@ -183,11 +183,7 @@ int crono_get_BAR0_file_size(unsigned domain, unsigned bus, unsigned dev,
 int crono_get_BAR0_mem_addr(unsigned domain, unsigned bus, unsigned dev, unsigned func, 
         pciaddr_t dwOffset, pciaddr_t* size, void* *base_mem_addr, void* *data_mem_addr);
 
-#ifdef __linux__
 #define PAGE_SIZE sysconf(_SC_PAGE_SIZE)
-#else
-#define PAGE_SIZE 4096
-#endif
 /**
  * Page size mask used to get number of pages needed for a buffer of certain size.
 */

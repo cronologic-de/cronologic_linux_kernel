@@ -11,12 +11,10 @@
 
 #define DebugAssert(x,y) assert(x)
 
-#ifdef __linux__
 #include <unistd.h>
 #include <string>
 #define __stdcall
 #define _snprintf_s(a,b,c,...) snprintf(a,b,__VA_ARGS__)
-#endif  //#ifdef __linux__
 
 #include <stdint.h>
 typedef uint8_t uint8;

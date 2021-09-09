@@ -44,12 +44,12 @@ typedef struct
     DWORD hCard;            // Handle of relevant card as received from
                             // WD_CardRegister()
     CRONO_KERNEL_DMA_PAGE *Page;
-#ifdef __linux__
+
     void** kernel_pages ;   // Array of page pointers, Needed to be cached for `unpin_user_pages`
                             // Created, filled and freed by the driver module
     void* sgt ;             // SG Table. Created, filled and freed by the driver module 
     DWORD pinned_pages_nr ; // Number of actual pages pinned, needed to be known if pin failed 
-#endif
+
 } CRONO_KERNEL_DMA;
 
 /**
@@ -66,8 +66,6 @@ typedef struct
 	unsigned long error_code;
 } DMASGBufLock_parameters;
 
-
-#ifdef __linux__
 /**
  * CRONO PCI Driver Name passed in pci_driver structure, and is found under 
  * /sys/bus/pci/drivers after installing the driver module.
@@ -98,7 +96,5 @@ struct crono_dev_DBDF
     unsigned int dev ;
     unsigned int func ;
 };
-
-#endif // #ifdef __linux__
 
 #endif // #define _CRONO_DRIVER_H_

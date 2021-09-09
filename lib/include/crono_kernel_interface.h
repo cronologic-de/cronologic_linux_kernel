@@ -124,37 +124,6 @@ typedef enum
 
 enum { CRONO_KERNEL_DMA_PAGES = 256 };
 
-#ifdef __linux__
-// Use structure definitions in "crono_driver.h"
-#else 
-typedef struct
-{
-    DMA_ADDR pPhysicalAddr; // Physical address of page.
-    DWORD dwBytes;          // Size of page.
-} CRONO_KERNEL_DMA_PAGE;
-
-typedef struct
-{
-    DWORD hDma;             // Handle of DMA buffer
-#if !defined(CRONO_KERNEL_MODE) && defined(KERNEL_64BIT)
-	PVOID64 pUserAddr;
-#else
-	PVOID	pUserAddr;        // Beginning of buffer.
-#endif
-    KPTR  pKernelAddr;      // Kernel mapping of kernel allocated buffer
-    DWORD dwBytes;          // Size of buffer.
-    DWORD dwOptions;        // Allocation options:
-
-                // DMA_KERNEL_BUFFER_ALLOC, DMA_KBUF_BELOW_16M,
-                // DMA_LARGE_BUFFER, DMA_ALLOW_CACHE, DMA_KERNEL_ONLY_MAP,
-                // DMA_FROM_DEVICE, DMA_TO_DEVICE, DMA_ALLOW_64BIT_ADDRESS
-    DWORD dwPages;          // Number of pages in buffer.
-    DWORD hCard;            // Handle of relevant card as received from
-                            // WD_CardRegister()
-    CRONO_KERNEL_DMA_PAGE Page[CRONO_KERNEL_DMA_PAGES];
-} CRONO_KERNEL_DMA;
-#endif // #ifdef __linux__
-
 enum {
     DMA_KERNEL_BUFFER_ALLOC = 0x1, // The system allocates a contiguous buffer.
         // The user does not need to supply linear address.
@@ -268,10 +237,8 @@ typedef struct
 enum { CRONO_KERNEL_PCI_CARDS = 100 }; // Slots max X Functions max
 
 typedef struct
-{
-#ifdef __linux__
+{    
     DWORD dwDomain; 
-#endif
     DWORD dwBus;
     DWORD dwSlot;
     DWORD dwFunction;
@@ -551,9 +518,7 @@ typedef struct {
 //                                  kernel access */
     UPTR pUserDirectMemAddr;   /* Memory address for direct user-mode access */
 	KPTR pPhysMemAddr;			/* Physical memeory address */
-#ifdef __linux__
     size_t dwSize ;              // Added for Linux, to be used with munmap
-#endif
 } CRONO_KERNEL_ADDR_DESC;
 
 /* -----------------------------------------------
@@ -585,12 +550,11 @@ typedef struct CRONO_KERNEL_DEVICE {
 	HANDLE							hDevice;		/* For device ioctl calls  */
     CRONO_KERNEL_ADDR_DESC          bar_addr;      // BAR0 userspace mapped address
 
-#ifdef __linux__
     /**
      * The name of the corresponding `miscdev` file, found under /dev
     */
     char miscdev_name[CRONO_MAX_DEV_NAME_SIZE]; 
-#endif
+
 } CRONO_KERNEL_DEVICE, *PCRONO_KERNEL_DEVICE;
 
 /*************************************************************
@@ -641,7 +605,6 @@ typedef struct CRONO_KERNEL_DEVICE {
 #define CRONO_RET_INV_PARAM_IF_ZERO(value_to_validate) \
             if (0 ==(value_to_validate)) { return CRONO_KERNEL_INVALID_PARAMETER ; }
 
-#ifdef __linux__
 #define sprintf_s snprintf
 void printFreeMemInfoDebug(const char* msg);
 #ifdef CRONO_DEBUG_ENABLED
@@ -651,7 +614,6 @@ void printFreeMemInfoDebug(const char* msg);
     #define CRONO_DEBUG(...)
     #define CRONO_DEBUG_MEM_MSG(fmt, ...)   
 #endif  // #ifdef CRONO_DEBUG
-#endif  // #ifdef __linux__
 
 #ifdef __cplusplus
 }
