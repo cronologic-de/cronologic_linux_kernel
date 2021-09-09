@@ -1,7 +1,7 @@
 # cronologic_linux_kernel
 Linux Kernel Module that allows to map large PCIe DMA ring buffers.
 
-It has been developed by cronologic GmbH & Co. KG to support the drivers for its time measurement devices such as.
+It has been developed by cronologic GmbH & Co. KG to support the drivers for its time measurement devices such as:
 * [xHPTDC8](https://www.cronologic.de/products/tdcs/xhptdc8-pcie) 8 channel 13ps streaming time-to-digital converter
 * [xTDC4](https://www.cronologic.de/products/tdcs/xtdc4-pcie) 4 channel 13ps common-start time-to-digital converter
 * [Timetagger](https://www.cronologic.de/products/tdcs/timetagger) 500ps low cost TDCs
