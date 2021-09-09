@@ -18,129 +18,45 @@ Environment:
 #ifndef __CRONO_KERNEL_INTERFACE_H__
 #define __CRONO_KERNEL_INTERFACE_H__ (1)
 
+#ifndef  __linux__
+#pragma message("Source code is compliant with Linux only")
+#endif 
+
 #if defined(__cplusplus)
 	extern "C" {
 #endif
 
-#ifdef _WIN32
-    #ifdef CRONO_KERNEL_DRIVER_EXPORTS
-        #define CRONO_KERNEL_API __declspec(dllexport)
-    #else
-        #ifndef CRONO_KERNEL_DRIVER_STATIC
-            #define CRONO_KERNEL_API __declspec(dllimport)
-        #else
-            #define CRONO_KERNEL_API
-        #endif
-    #endif
-#elif __linux__
-    #ifndef CRONO_KERNEL_MODE
-        #include <stdint.h> 
-        #include <string.h>    
-        #define CRONO_KERNEL_API 
-    #else
-        #define CRONO_KERNEL_API export
-    #endif 
-    #include <stddef.h>
-    #include "crono_driver.h"
-    #define PCI_ANY_ID (~0)
-    #define CRONO_SUCCESS   0
-    #define CRONO_VENDOR_ID 0x1A13
-    #ifndef FALSE
-        #define FALSE   (0)
-    #endif
-    #ifndef TRUE
-        #define TRUE    (!FALSE)
-    #endif
-#else
+#ifndef CRONO_KERNEL_MODE
+    #include <stdint.h> 
+    #include <string.h>    
     #define CRONO_KERNEL_API 
+#else
+    #define CRONO_KERNEL_API export
+#endif 
+#include <stddef.h>
+#include "crono_driver.h"
+#define PCI_ANY_ID (~0)
+#define CRONO_SUCCESS   0
+#define CRONO_VENDOR_ID 0x1A13
+#ifndef FALSE
+    #define FALSE   (0)
 #endif
-
+#ifndef TRUE
+    #define TRUE    (!FALSE)
+#endif
 
 #ifndef CRONO_KERNEL_MODE
-    #ifdef _WIN32
-        #include <windows.h>
-    //	#include <winioctl.h>
-    #elif  __linux__
-        typedef int BOOL, *PBOOL, *LPBOOL;
-        typedef char CHAR, *PCHAR;
-        typedef void *PVOID;
-        typedef unsigned char BYTE, *PBYTE, *LPBYTE;
-        typedef unsigned long DWORD, *PDWORD, *LPDWORD;
-        typedef uint64_t UINT64;
-        typedef uint32_t UINT32;
-        typedef unsigned short WORD, *PWORD, *LPWORD;
-        typedef void* HANDLE ;
-        typedef uint64_t pciaddr_t;
-    #else // #ifndef CRONO_KERNEL_MODE
-        /* extracted from kpstdlib.h */
-        #if defined(WINNT) || defined(WINCE) || defined(WIN32)
-            #if defined(_WIN64) && !defined(KERNEL_64BIT)
-            #define KERNEL_64BIT
-            #endif
-            typedef unsigned long ULONG;
-            typedef unsigned short USHORT;
-            typedef unsigned char UCHAR;
-            typedef long LONG;
-            typedef short SHORT;
-            typedef char CHAR;
-            typedef ULONG DWORD;
-            typedef DWORD *PDWORD;
-            typedef unsigned char *PBYTE;
-            typedef USHORT WORD;
-            typedef void *PVOID;
-            typedef char *PCHAR;
-            typedef PVOID HANDLE;
-            typedef ULONG BOOL;
-            #ifndef WINAPI
-                #define WINAPI
-            #endif
-        #elif defined(UNIX)
-            #ifndef __cdecl
-                #define __cdecl
-            #endif
-        #endif
-            /* end kplstdlib.h */
-    #endif
+    typedef int BOOL, *PBOOL, *LPBOOL;
+    typedef char CHAR, *PCHAR;
+    typedef void *PVOID;
+    typedef unsigned char BYTE, *PBYTE, *LPBYTE;
+    typedef unsigned long DWORD, *PDWORD, *LPDWORD;
+    typedef uint64_t UINT64;
+    typedef uint32_t UINT32;
+    typedef unsigned short WORD, *PWORD, *LPWORD;
+    typedef void* HANDLE ;
+    typedef uint64_t pciaddr_t;
 #endif
-		
-/*
-	for use with CRONO_KERNEL_DMAContigBufLock
-	implementation was extracted from
-	http://stackoverflow.com/questions/29938573/accessing-kernel-memory-from-user-mode-windows
-	and from
-	http://www.osronline.com/showthread.cfm?link=251845
-*/
-/*typedef struct _MEMORY_ENTRY
-{
-	PVOID       pBuffer;
-	DWORD		dmaBufSize;
-} MEMORY_ENTRY, *PMEMORY_ENTRY*/;
-
-
-//
-// Define an Interface Guid so that app can find the device and talk to it.
-//
-
-#ifdef _WIN32
-// crono_kernel0101
-// {7246d083 - e458 - 4d01 - 8a7b - cb5d6ae839e8}
-DEFINE_GUID(GUID_CRONO_KERNEL,
-	0x7246d083, 0xe458, 0x4d01, 0x8a, 0x7b, 0xcb, 0x5d, 0x6a, 0xe8, 0x39, 0xe8);
-
-// crono_kernel
-// {cb67d8b4-bb8a-4a4f-af85-06fc9230bf09}
-DEFINE_GUID(GUID_CRONO_KERNEL_old,
-	0xcb67d8b4, 0xbb8a, 0x4a4f, 0xaf, 0x85, 0x06, 0xfc, 0x92, 0x30, 0xbf, 0x09);
-#endif
-
-
-/*  extracted from windrvr.h */ 
-#if defined(WIN32)
-    #define DLLCALLCONV __stdcall
-#else
-    #define DLLCALLCONV
-#endif
-
 
 /*
  * The KPTR is guaranteed to be the same size as a kernel-mode pointer
@@ -474,9 +390,7 @@ typedef struct
     #define BZERO(buf) memset(&(buf), 0, sizeof(buf))
 #endif
 
-/* *end* extracted from windrvr.h */
-
-CRONO_KERNEL_API const char * DLLCALLCONV Stat2Str(DWORD dwStatus);
+CRONO_KERNEL_API const char * Stat2Str(DWORD dwStatus);
 
 #include "crono_ioctl.h"
 
@@ -533,40 +447,40 @@ typedef DWORD CRONO_KERNEL_DRV_OPEN_OPTIONS;
     General
    ----------------------------------------------- */
 /* Get a device's user context */
-CRONO_KERNEL_API PVOID DLLCALLCONV CRONO_KERNEL_GetDevContext(CRONO_KERNEL_DEVICE_HANDLE hDev);
+CRONO_KERNEL_API PVOID CRONO_KERNEL_GetDevContext(CRONO_KERNEL_DEVICE_HANDLE hDev);
 
 /* -----------------------------------------------
     Open/close driver and init/uninit CRONO_KERNEL library
    ----------------------------------------------- */
 #ifdef _WIN32
-DWORD DLLCALLCONV CRONO_KERNEL_DriverOpen(CRONO_KERNEL_DRV_OPEN_OPTIONS openOptions,
+DWORD CRONO_KERNEL_DriverOpen(CRONO_KERNEL_DRV_OPEN_OPTIONS openOptions,
     const CHAR *sLicense);
 #elif __linux__
-DWORD DLLCALLCONV CRONO_KERNEL_DriverOpen(CRONO_KERNEL_DRV_OPEN_OPTIONS openOptions);
+DWORD CRONO_KERNEL_DriverOpen(CRONO_KERNEL_DRV_OPEN_OPTIONS openOptions);
 #endif
-DWORD DLLCALLCONV CRONO_KERNEL_DriverClose(void);
+DWORD CRONO_KERNEL_DriverClose(void);
 
 /* -----------------------------------------------
     Scan bus (PCI/PCMCIA)
    ----------------------------------------------- */
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_PciScanDevices(DWORD dwVendorId, DWORD dwDeviceId,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_PciScanDevices(DWORD dwVendorId, DWORD dwDeviceId,
     CRONO_KERNEL_PCI_SCAN_RESULT *pPciScanResult);
 
 /* -------------------------------------------------
     Get device's resources information (PCI/PCMCIA)
    ------------------------------------------------- */
 [[deprecated]]
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_PciGetDeviceInfo(CRONO_KERNEL_PCI_CARD_INFO *pDeviceInfo);
+CRONO_KERNEL_API DWORD CRONO_KERNEL_PciGetDeviceInfo(CRONO_KERNEL_PCI_CARD_INFO *pDeviceInfo);
 
 /* -----------------------------------------------
     Open/Close device
    ----------------------------------------------- */
 #if !defined(__KERNEL__)
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_PciDeviceOpen(CRONO_KERNEL_DEVICE_HANDLE *phDev,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_PciDeviceOpen(CRONO_KERNEL_DEVICE_HANDLE *phDev,
     const CRONO_KERNEL_PCI_CARD_INFO *pDeviceInfo, const PVOID pDevCtx,
     PVOID reserved, const CHAR *pcKPDriverName, PVOID pKPOpenData);
 
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_PciDeviceClose(CRONO_KERNEL_DEVICE_HANDLE hDev);
+CRONO_KERNEL_API DWORD CRONO_KERNEL_PciDeviceClose(CRONO_KERNEL_DEVICE_HANDLE hDev);
 
 #endif
 
@@ -581,26 +495,26 @@ CRONO_KERNEL_API DWORD CRONO_KERNEL_CardCleanupSetup(CRONO_KERNEL_DEVICE_HANDLE 
    ----------------------------------------------- */
 
 /* Read/write a device's address space (8/16/32/64 bits) */
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_ReadAddr8(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_ReadAddr8(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
     KPTR dwOffset, BYTE *val);
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_ReadAddr16(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_ReadAddr16(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
     KPTR dwOffset, WORD *val);
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_ReadAddr32(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_ReadAddr32(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
     KPTR dwOffset, UINT32 *val);
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_ReadAddr64(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_ReadAddr64(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
     KPTR dwOffset, UINT64 *val);
 
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_WriteAddr8(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_WriteAddr8(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
     KPTR dwOffset, BYTE val);
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_WriteAddr16(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_WriteAddr16(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
     KPTR dwOffset, WORD val);
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_WriteAddr32(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_WriteAddr32(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
     KPTR dwOffset, UINT32 val);
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_WriteAddr64(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_WriteAddr64(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwAddrSpace,
     KPTR dwOffset, UINT64 val);
 
 /* Is address space active */
-CRONO_KERNEL_API BOOL DLLCALLCONV CRONO_KERNEL_AddrSpaceIsActive(CRONO_KERNEL_DEVICE_HANDLE hDev,
+CRONO_KERNEL_API BOOL CRONO_KERNEL_AddrSpaceIsActive(CRONO_KERNEL_DEVICE_HANDLE hDev,
     DWORD dwAddrSpace);
 
 /* -----------------------------------------------
@@ -608,17 +522,17 @@ CRONO_KERNEL_API BOOL DLLCALLCONV CRONO_KERNEL_AddrSpaceIsActive(CRONO_KERNEL_DE
    ----------------------------------------------- */
 /* Read/write 8/16/32/64 bits from the PCI configuration space.
    Identify device by handle */
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_PciReadCfg32(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwOffset,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_PciReadCfg32(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwOffset,
     UINT32 *val);
 
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_PciWriteCfg32(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwOffset,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_PciWriteCfg32(CRONO_KERNEL_DEVICE_HANDLE hDev, DWORD dwOffset,
 	UINT32 val);
 
 /* -----------------------------------------------
     DMA (Direct Memory Access)
    ----------------------------------------------- */
 /* Allocate and lock a contiguous DMA buffer */
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_DMAContigBufLock(CRONO_KERNEL_DEVICE_HANDLE hDev, PVOID *ppBuf,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_DMAContigBufLock(CRONO_KERNEL_DEVICE_HANDLE hDev, PVOID *ppBuf,
 	DWORD dwOptions, DWORD dwDMABufSize, CRONO_KERNEL_DMA **ppDma);
    
 /**
@@ -631,21 +545,21 @@ CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_DMAContigBufLock(CRONO_KERNEL_DE
  * The relevant part (MDL etc.) is stored in the CRONO_KERNEL_DMA struct.
  * Any error that appear will be stored in the item value.
 */
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_DMASGBufLock(CRONO_KERNEL_DEVICE_HANDLE hDev, PVOID pBuf,
+CRONO_KERNEL_API DWORD CRONO_KERNEL_DMASGBufLock(CRONO_KERNEL_DEVICE_HANDLE hDev, PVOID pBuf,
     DWORD dwOptions, DWORD dwDMABufSize, CRONO_KERNEL_DMA **ppDma);
 
 /* Unlock a DMA buffer */
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_DMABufUnlock(CRONO_KERNEL_DEVICE_HANDLE hDev, CRONO_KERNEL_DMA *pDma);
+CRONO_KERNEL_API DWORD CRONO_KERNEL_DMABufUnlock(CRONO_KERNEL_DEVICE_HANDLE hDev, CRONO_KERNEL_DMA *pDma);
 
 /* Synchronize cache of all CPUs with the DMA buffer,
  * should be called before DMA transfer */
 [[deprecated]]
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_DMASyncCpu(CRONO_KERNEL_DMA *pDma);
+CRONO_KERNEL_API DWORD CRONO_KERNEL_DMASyncCpu(CRONO_KERNEL_DMA *pDma);
 
 /* Flush the data from I/O cache and update the CPU caches.
  * Should be called after DMA transfer. */
 [[deprecated]]
-CRONO_KERNEL_API DWORD DLLCALLCONV CRONO_KERNEL_DMASyncIo(CRONO_KERNEL_DMA *pDma);
+CRONO_KERNEL_API DWORD CRONO_KERNEL_DMASyncIo(CRONO_KERNEL_DMA *pDma);
 
 
 

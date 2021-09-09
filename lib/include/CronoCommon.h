@@ -59,11 +59,6 @@ public:
 	virtual const char* what() { return text.c_str(); };
 };
 
-#if defined(_WIN32) || defined(_WIN64)
-#include <windows.h>
-#define crono_sleep(x) Sleep(x)
-#else
 #define crono_sleep(x) usleep(1000*x)
-#endif
 
 #endif

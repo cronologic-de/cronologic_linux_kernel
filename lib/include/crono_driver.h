@@ -57,12 +57,8 @@ typedef struct
 */
 typedef struct
 {
-#ifdef __linux__
 	struct vm_area_struct **vmas;
 	unsigned long npages ;
-#elif _WIN32
-	HANDLE hDevice;
-#endif 
     CRONO_KERNEL_DMA **ppDma ;  // Should be filled as it's the parameter sent in `CRONO_KERNEL_DMASGBufLock` $$ still used?
 	void* pBuf;
 	unsigned long dwOptions;
