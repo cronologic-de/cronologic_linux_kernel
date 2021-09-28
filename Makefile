@@ -1,13 +1,7 @@
 # Please make the file under the sub-directory related to your target architecture
-
-SUBDIRS := $(wildcard */.) 
-
-SUBDIRS: 
-	for dir in $(SUBDIRS) ; do \
-		make -C $$dir; \
-	done
+all:
+	make -C ./src
 
 clean:
-	for dir in $(SUBDIRS) ; do \
-		make -C $$dir clean; \
-	done
+	make -C ./src clean
+
