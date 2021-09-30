@@ -55,7 +55,6 @@ ccflags-y 		+= -m64
 #
 all:
 	$(call CRONO_CREATE_SYMLINKS)
-	echo "$(MAKE) -C $(KDIR) M=$(PWD) modules"
 	$(MAKE) -C $(KDIR) M=$(PWD) modules 
 	$(call CRONO_COPY_DRVMOD_TARGET,$(TARGET).ko,,release_64)
 	$(call CRONO_CLEAN_SYMLINKS)
