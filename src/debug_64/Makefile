@@ -15,6 +15,21 @@ BLDBINPATH	:= ../../build/bin
 # Turn it on to avoid dmesg error `tainting kernel`
 CONFIG_MODULE_SIG=y
 
+# Kernel Version
+KVER := $(shell uname -r)
+KMAJ := $(shell echo $(KVER) | \
+sed -e 's/^\([0-9][0-9]*\)\.[0-9][0-9]*\.[0-9][0-9]*.*/\1/')
+KMIN := $(shell echo $(KVER) | \
+sed -e 's/^[0-9][0-9]*\.\([0-9][0-9]*\)\.[0-9][0-9]*.*/\1/')
+ADD_CCFLAGS_Y=
+# No Indentation Tabs/Spaces in the following ifeq lines please
+ifeq ($(shell if [ $(KMAJ) -gt 5 ] ; then echo $$? ; fi ;),0)
+$(eval ADD_CCFLAGS_Y=-DKERNL_SUPPORTS_PIN_UG)
+endif 
+ifeq ($(shell if [ $(KMAJ) -eq 5 ] && [ $(KMIN) -ge 6 ] ; then echo $$? ; fi ;),0)
+$(eval ADD_CCFLAGS_Y=-DKERNL_SUPPORTS_PIN_UG)
+endif 
+
 #_______________________
 # Set compiler variables
 #
@@ -22,10 +37,16 @@ CONFIG_MODULE_SIG=y
 # Target Specs
 obj-m 			+= $(TARGET).o
 $(TARGET)-objs 	+= crono_kernel_module.o 
+
 # Macros & Flags
 ccflags-y 		:= -DCRONO_KERNEL_MODE -DCRONO_DEBUG_ENABLED -DDEBUG=1
+
+# Support pin_user_pages for versions >= 5.6
+ccflags-y 		+= $(ADD_CCFLAGS_Y)
+
 # Include Paths
 ccflags-y 		+= -I$(src)/../../include 
+
 # Architecture
 ccflags-y 		+= -m64
 
@@ -34,7 +55,6 @@ ccflags-y 		+= -m64
 #
 all:
 	$(call CRONO_CREATE_SYMLINKS)
-	$(call CRONO_GENERATE_LINUX_VERSION_H)
 	$(MAKE) -C $(KDIR) M=$(PWD) modules ARCH=x86_64
 	$(call CRONO_COPY_DRVMOD_TARGET,$(TARGET).ko,,debug_64)
 	$(call CRONO_CLEAN_SYMLINKS)
@@ -71,12 +91,3 @@ define CRONO_COPY_DRVMOD_TARGET
 	cp -t $(BLDBINPATH)/$(3) $(1)
 endef
 
-# Generates version.h from currently used kernel, and create a symbolic link 
-# for it in our include directory, to be used as a more accurate way than
-# /usr/include/linux/version.h
-define CRONO_GENERATE_LINUX_VERSION_H
-	cd /usr/src/linux-headers-`uname -r` ; \
-		make include/generated/uapi/linux/version.h 
-	ln -sf /usr/src/linux-headers-`uname -r`/include/generated/uapi/linux/version.h \
-		../../include/version.h
-endef

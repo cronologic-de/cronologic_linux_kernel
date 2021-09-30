@@ -361,7 +361,7 @@ static int _crono_miscdev_ioctl_pin_buffer(struct file *filp,
 
         unsigned long start_addr_to_pin; // Start address in pBuf to be pinned
                                          // by `pin_user_pages`.
-#if KERNL_SUPPORTS_PIN_UG
+#ifdef KERNL_SUPPORTS_PIN_UG
         unsigned long next_pages_addr; // Next address in pBuf to be pinned by
                                        // `pin_user_pages`.
 #endif
@@ -396,7 +396,7 @@ static int _crono_miscdev_ioctl_pin_buffer(struct file *filp,
                  buffer_pages_nr * sizeof(void *));
 
         start_addr_to_pin = (__u64)params->pBuf;
-#if KERNL_SUPPORTS_PIN_UG
+#ifdef KERNL_SUPPORTS_PIN_UG
         // https://elixir.bootlin.com/linux/v5.6/source/include/linux/mm.h#L1508
         // Pin buffer blocks, each of size = (nr_per_call * PAGE_SIZE) in every
         // iteration to its corresponding page address in
@@ -445,7 +445,8 @@ static int _crono_miscdev_ioctl_pin_buffer(struct file *filp,
 
                 params->ppDma[0]->pinned_pages_nr += actual_pinned_nr_of_call;
         }
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+#else
+#pragma message("Kernel version is older than 5.6")
         // https://elixir.bootlin.com/linux/v4.9/source/include/linux/mm.h#L1278
         down_read(&current->mm->mmap_sem);
         pr_debug(
@@ -467,9 +468,6 @@ static int _crono_miscdev_ioctl_pin_buffer(struct file *filp,
                 return -EFAULT;
         }
         up_read(&current->mm->mmap_sem);
-#else
-#pragma message("Unsupported Linux Kernel Version")
-        pr_err("Unsupported Linux Kernel Version");
 #endif
 
         // Validate the number of pinned pages
@@ -505,7 +503,7 @@ static int _crono_miscdev_ioctl_pin_buffer(struct file *filp,
         params->ppDma[0]->dwPages =
             params->ppDma[0]
                 ->pinned_pages_nr; // Do we really need them to be the same?
-#if KERNL_SUPPORTS_PIN_UG
+#ifdef KERNL_SUPPORTS_PIN_UG
         // Calculate actual size in case pinned memory is larger than buffer
         // size
         params->ppDma[0]->dwBytes = start_addr_to_pin - (__u64)params->pBuf;
@@ -705,7 +703,7 @@ _crono_miscdev_ioctl_cleanup_buffer(struct file *filp,
                                     DMASGBufLock_parameters *params) {
         struct pci_dev *devp;
         int ret;
-#if !(KERNL_SUPPORTS_PIN_UG)
+#ifndef KERNL_SUPPORTS_PIN_UG
         int ipage;
 #endif
 
@@ -716,7 +714,7 @@ _crono_miscdev_ioctl_cleanup_buffer(struct file *filp,
                 return CRONO_SUCCESS;
         }
 
-#if KERNL_SUPPORTS_PIN_UG
+#ifdef KERNL_SUPPORTS_PIN_UG
         // Unpin pages
         pr_debug("Unpinning pages of address = <%p>, and number = <%d>",
                  params->ppDma[0]->kernel_pages,

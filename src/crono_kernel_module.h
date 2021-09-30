@@ -8,8 +8,7 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/pci.h>
-#include <version.h>
-#if !(KERNL_SUPPORTS_PIN_UG)
+#ifndef KERNL_SUPPORTS_PIN_UG
 #include <linux/uaccess.h>
 #endif
 
