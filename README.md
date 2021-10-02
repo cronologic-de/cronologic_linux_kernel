@@ -14,3 +14,97 @@ The user mode part of the driver is available in a [separate repository](https:/
 
 The initial code has been written by [Bassem Ramzy](https://github.com/Bassem-Ramzy) with support from [Richard Weinberger](https://github.com/richardweinberger). It is licensed unter [GPL3](LICENSE).
 
+---
+
+# Installation
+
+## Supported Kernel Versions
+Driver is tested on Kernel Versions starting **5.0**.
+
+## Supported Distributions
+The driver is tested on the following **64-bit** distributions:
+- Ubuntu (ubuntu-20.04.1-desktop-amd64) 
+  - 5.4.0-42-generic
+  - 5.11.0-37-generic OK
+- CentOS (CentOS-Stream-8-x86_64-20210927):
+  - 5.4.150-1.e18.elrepo.x86_64
+  - 5.14.9-1.el8.elrepo..x86_64
+- Fedora (Fedora-Workstation-Live-x86_64-34-1.2):
+  - 5.14.9-200.fc34.x86_64
+
+## Prerequisites
+## Ubuntu 
+- Make sure that both `make` and `gcc` packages are installed, or install them using: 
+```CMD
+sudo apt-get install make gcc
+```
+- Make sure `kernel-devel` and `kernel-headers` of your current kernel version are installed, or install them using:
+```CMD
+sudo apt-get install linux-headers-$(uname -r) linux-modules-$(uname -r)
+```
+
+### CentOS 
+- Make sure that both `make` and `gcc` packages are installed, or install them using: 
+```CMD
+sudo yum install gcc make
+```
+- If the kernel development is not installed on your system for the current kernel verision, you can install it using `elrepo` as following
+```CMD
+sudo rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+sudo yum install http://www.elrepo.org/elrepo-release-8.el8.elrepo.noarch.rpm
+```
+- If you are using _Long Term Support_ version, then, you need to run the following commands:
+```CMD
+sudo dnf --enablerepo=elrepo-kernel install kernel-lt
+sudo dnf --enablerepo=elrepo-kernel install kernel-lt-devel
+```
+- If you are using _Long Mainline Stable_ Version, then, you need to run the following commands:
+```CMD
+sudo dnf --enablerepo=elrepo-kernel install kernel-ml
+sudo dnf --enablerepo=elrepo-kernel install kernel-ml-devel
+```
+
+### Fedora
+- Make sure that both `make` and `gcc` packages are installed, or install them using: 
+```CMD
+sudo yum install gcc make
+```
+- If the kernel development is not installed on your system for the current kernel verision, you can install it as following
+```CMD
+sudo yum install kernel-devel-$(uname -r)
+```
+
+### General Notes
+* You can check if kernel-devel is installed on your system by running the following command:
+``ls /lib/modules/$(uname -r)/build``
+
+## Installation Steps
+To install the driver:
+1. Clone this repository, either download it as .zip file and extract it, or use git.
+```CMD
+git clone https://github.com/cronologic-de/cronologic_linux_kernel
+```
+2. From the terminal, navigate into the directory `cronologic_linux_kernel`, e.g. using `cd`.
+3. Make sure you have sudo access.
+4. Run the installation script:
+```CMD
+sudo bash ./install.sh
+```
+5. And, voi la
+
+### `install.sh` Usage
+```CMD
+    sudo bash ./install.sh [Options]
+
+    [Options]
+    -s  (S)top currently loaded driver (if exists). if '-s 0', currently loaded driver
+        will not be stopped, otherwise, (by default) it's stopped if loaded.
+        Ignored if -i is not '0', or if -u is used.
+    -i  (I)nstall driver. if '-i 0', driver will not be installed, otherwise,
+        (by default) driver is installed. Ignored if -u is used.
+    -b  Add driver to (B)oot. If '-b 0', driver will not be added to boot, otherwise,
+        (by default) driver is added. Ignored if -u is used.
+    -u  Uninstall the driver and remove it from bood startup.
+    -d  Display (D)ebug Messages.
+    -h  Display (H)elp and usage and exit.
+```
