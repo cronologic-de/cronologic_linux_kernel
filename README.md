@@ -237,7 +237,7 @@ Run the following command and it will uninstall the driver (if installed), and r
 ```CMD
 sudo bash ./install.sh -u
 ```
-or, you can run `rmmod`
+or, you can run `rmmod`, which will only removes the installed module but won't remove it from boot if it's there. 
 ```CMD
 sudo rmmod crono_pci_drvmod.ko
 ```
@@ -258,13 +258,6 @@ ls /dev/crono* -lah
 
 A typical debug successful output could be as following for two devices installed on the system (an xTDC4, and an xHPTDC8):
 ![image](https://user-images.githubusercontent.com/75851720/135750960-fd43e48a-09f9-4718-a284-ca64da73fc1f.png)
-
-### Miscellaneous Driver Naming Convension
-The misc driver name is consutructed following the macro [CRONO_CONSTRUCT_MISCDEV_NAME](https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/include/crono_driver.h#L80)
-```C
-crono_%02X_%02X%02X%02X%01X, device_id, domain, bus, dev, func
-```
-For example: the misc driver name is `crono_06_0002000` for xTDC4 (Id = 0x06), domain = 0x00, bus = 0x02, device = 0x00, and function = 0x0.
 
 ---
 
@@ -313,6 +306,8 @@ Sample code:
 ```
 
 ## Using `ioctl`
+Application should call `ioctl` using both the `miscdev` file name and the corresponding request value defined in `./include/crono_driver.h` with prefix `IOCTL_CRONO_`.
+
 Sample code to call `ioctl`:
 ```C
 #include "crono_driver.h"
@@ -358,6 +353,13 @@ Sample code to call `ioctl`:
 }
 ```
 
+## Miscellaneous Device Driver Naming Convension
+The misc driver name is consutructed following the macro [CRONO_CONSTRUCT_MISCDEV_NAME](https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/include/crono_driver.h#L80)
+```C
+crono_%02X_%02X%02X%02X%01X, device_id, domain, bus, dev, func
+```
+For example: the misc driver name is `crono_06_0002000` for xTDC4 (Id = 0x06), domain = 0x00, bus = 0x02, device = 0x00, and function = 0x0.
+
 ---
 
 # The Code
@@ -399,3 +401,4 @@ BTW, I tried `__sg_alloc_table_from_pages`  & `sg_dma_address`, but the addresse
 
 ## Code-style
 The source code files are formatted using `clang-format`, with `LLVM` format and `IndentWidth:     8`.
+
