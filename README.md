@@ -386,3 +386,5 @@ Since the driver uses `sg_alloc_table_from_pages`, accordingly, the driver uses 
 
 BTW, I tried `__sg_alloc_table_from_pages`  & `sg_dma_address`, but the addresses didn’t seem to be correct, but I didn’t use it again for the above mentioned reason.
 
+## Formatting
+The source code files are formatted using `clang-format`, with `LLVM` format and `IndentWidth:     8`.
