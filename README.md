@@ -17,6 +17,13 @@ The initial code has been written by [Bassem Ramzy](https://github.com/Bassem-Ra
 ---
 
 # The Project
+The project generates a `Kernel Module` that is installed on the system. This module creates a `Miscellaneous Driver` (miscdev) _for every installed device_, this miscdev driver is used to access its corresponding device. 
+
+Access is done by userspace and applications via the following ways:
+1. `sysfs`. Accessing the driver from file system, e.g. accessing BAR0 or the Device Configuration.
+2. `ioctl` calls for the `miscdev` file.
+
+The driver is designed to be used for all conologic devices that are installed on PCIe or Thunderbolt sockets.
 
 ##  Directory Structure
     .
@@ -32,20 +39,20 @@ Driver is tested on Kernel Versions starting **5.0**.
 
 ## Supported Distributions
 The driver is tested on the following **64-bit** distributions:
-- Ubuntu (ubuntu-20.04.1-desktop-amd64) 
+- **Ubuntu** (ubuntu-20.04.1-desktop-amd64) 
   - 5.4.0-42-generic
   - 5.10.0-051000-generic
   - 5.11.0-37-generic
-- CentOS (CentOS-Stream-8-x86_64-20210927):
+- **CentOS** (CentOS-Stream-8-x86_64-20210927):
   - 5.4.150-1.e18.elrepo.x86_64
   - 5.14.9-1.el8.elrepo.x86_64
-- Fedora (Fedora-Workstation-Live-x86_64-34-1.2):
+- **Fedora** (Fedora-Workstation-Live-x86_64-34-1.2):
   - 5.14.9-200.fc34.x86_64
 
 ---
 
 # Build the Project
-To build the project, run the make command:
+To build the project, run `make` command:
 ```CMD
 $sudo make
 ```
@@ -221,8 +228,12 @@ Run the following command and it will uninstall the driver (if installed), and r
 ```CMD
 sudo bash ./install.sh -u
 ```
+or, you can run `rmmod`
+```CMD
+sudo rmmod crono_pci_drvmod.ko
+```
 
-## What's Happened After Installation
+## What Happens After Installation
 
 After installing the driver module successfully, the following takes place:
 1. The driver module is listed in the system. You should find the module listed using `lsmod`, e.g.
@@ -234,6 +245,7 @@ crono_pci_drvmod       53248  0
 ```CMD
 ls /dev/crono* -lah
 ```
+3. All driver messages are directed to the kernel messages displayed using `dmesg`
 
 ### Miscellaneous Driver Naming Convension
 The misc driver name is consutructed following the macro [CRONO_CONSTRUCT_MISCDEV_NAME](https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/include/crono_driver.h#L80)
@@ -242,4 +254,92 @@ crono_%02X_%02X%02X%02X%01X, device_id, domain, bus, dev, func
 ```
 For example: the misc driver name is `crono_06_0002000` for xTDC4 (Id = 0x06), domain = 0x00, bus = 0x02, device = 0x00, and function = 0x0.
 
+---
 
+# Accessing the Driver
+Userspace and applications can access the device via the following ways:
+1. Using `sysfs`.
+2. Using `ioctl`.
+
+Full code is found in the [userspace repository](https://github.com/cronologic-de/cronologic_linux_usermode).
+
+## Using `sysfs`
+Accessing the `miscdev` via `sysfs` is mainly done via accessing files under directory `/sys/bus/pci/devices/DDDD:BB:DD:F/`. 
+
+Sample code:
+```C
+        char dev_slink_path[PATH_MAX];
+        char BAR0_resource_path[PATH_MAX];
+        char dev_slink_content_path[PATH_MAX];
+        ssize_t dev_slink_content_len = 0;
+        int fd = -1;
+
+        // Get the /sys/devices/ symbolic link content
+        dev_slink_content_len =
+            readlink("/sys/bus/pci/devices/0000:02:00.0", dev_slink_content_path, PATH_MAX - 1);
+        if (-1 == dev_slink_content_len) {
+                return -1;
+        }
+        // e.g. ../../../devices/pci0000:00/0000:00:1c.7/0000:02:00.0
+        dev_slink_content_path[dev_slink_content_len] = '\0';
+
+        // Build pPath
+        sprintf(BAR0_resource_path, "/sys/%s/resource0", &(dev_slink_content_path[9]));
+
+        // Open the BAR resource file
+        fd = open(BAR0_resource_path, O_RDWR | O_SYNC);
+
+        // Do mmap
+
+        // Close the file
+        close(fd);
+
+        .
+        .
+```
+
+## Using `ioctl`
+Sample code to call `ioctl`:
+```C
+#include "crono_driver.h"
+{
+        struct stat miscdev_stat;
+        char miscdev_path[PATH_MAX];
+        char miscdev_name[CRONO_MAX_DEV_NAME_SIZE];
+        struct crono_dev_DBDF dbdf = {0, 0, 2, 0};
+        DMASGBufLock_parameters params;
+
+        // Get the miscdev file path, e.g. `/dev/crono_06_0002000`
+        CRONO_CONSTRUCT_MISCDEV_NAME(miscdev_name, 0x06, dbdf);
+        sprintf(miscdev_path, "/dev/%s", pDevice->miscdev_name);
+        if (stat(miscdev_path, &miscdev_stat) != 0) {
+                printf("Error: miscdev `%s` is not found.\n", miscdev_path);
+                return -1;
+        }
+
+        // Open the miscdev
+        miscdev_fd = open(miscdev_path, O_RDWR);
+        if (miscdev_fd < 0) {
+                printf("Error %d: cannot open device file <%s>...\n", errno,
+                       miscdev_path);
+                return -1;
+        }
+
+        // Initialize params
+        params.xyz = abc ;
+
+        // Call ioctl
+        if (CRONO_SUCCESS !=
+                ioctl(miscdev_fd, IOCTL_CRONO_LOCK_BUFFER, &params)) {
+                close(miscdev_fd);
+                return -1 ;
+        }
+
+        // Close device file
+        close(miscdev_fd);
+
+        .
+        .
+
+}
+```
