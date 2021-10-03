@@ -16,12 +16,16 @@ The initial code has been written by [Bassem Ramzy](https://github.com/Bassem-Ra
 
 ---
 
-# Installation
+# The Project
 
-## Overview
-This installation of the driver module is very simple, and is mainly done via `insmod`, however, an installation script is provided to support wider options, like debug, add to boot, uninstall, etc...</br>
-The installation firstly builds the driver module code, that's why the minimal build packages are needed as prerequisites (_mentioned in the following sections_).</br>
-User should **run the installation script with every kernel version used** on the machine, and **after every upgrade** to a new kernel version.</br>
+##  Directory Structure
+    .
+    ├── include         # Header files to be included by userspace as well
+    ├── src/            # Driver module source files
+    │   ├── debug_64    # Debug Build makefile and output files
+    │   └── release_64  # Release Build makefile and output files
+    ├── Makefile        # Project general makefile 
+    └── install.sh      # Installation script
 
 ## Supported Kernel Versions
 Driver is tested on Kernel Versions starting **5.0**.
@@ -38,7 +42,24 @@ The driver is tested on the following **64-bit** distributions:
 - Fedora (Fedora-Workstation-Live-x86_64-34-1.2):
   - 5.14.9-200.fc34.x86_64
 
-## Prerequisites
+---
+
+# Build the Project
+To build the project, run the make command:
+```CMD
+$make
+```
+
+## Makefiles and Build Versions
+The following makefiles are used to build the project versions:
+| Makefile | Builds | Description | 
+| -------- | ------ | ----------- |
+| ./Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project.|
+| ./src/Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project. |
+| ./src/debug_64/Makefile | Debug | Builds the `debug` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to `./build/bin/debug_64/` directory. </br> Additional debugging information will be printed to the kernel messages displayed using `dmesg`.|
+| ./src/release_64/Makefile | Release | Builds the `release` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to `./build/bin/release_64/` directory. |
+
+## Build Prerequisites
 ### Ubuntu 
 - Make sure you have **sudo** access.
 - Make sure that both `make` and `gcc` packages are installed, or install them using: 
@@ -96,6 +117,44 @@ gcc -v
 ```CMD
 ls /lib/modules/$(uname -r)/build
 ```
+
+## Clean the Output Files 
+To clean the project all builds output:
+```CMD
+make clean
+```
+Or, you can clean a specific build as following:
+```CMD
+.../src/debug_64$make clean
+.../src/release_64$make clean
+```
+
+## More Details
+
+### Preprocessor Directives
+| Identifier | Description | 
+| ---------- | ----------- |
+|`KERNL_SUPPORTS_PIN_UG` | This identifier is defined when the current kernel version is >= 5.6. </br> Kernel Version 5.6 is the first version introduced `pin_user_pages`, which is used by the driver for DMA APIs.</br>Kernel version is not prefferred to be got using `include <linux/version.h>` and `LINUX_VERSION_CODE` identifier to cover that case when there are more than a kernel version installed on the environment.|
+|`CRONO_KERNEL_MODE`| This identifier is used to differentiate between using the header files by the driver code and using them by userspace and applications code.|
+|`DEBUG`| Debug mode.|
+
+### Why There Is a Makefile Per Build
+For creating a kernel module, it's much simpler (_and feasibile_) to have a Makefile per build, rather than having all builds in one Makefile.
+
+### Create Symbolic Links to Source Files 
+Makefile for kernel module is simpler when having all the source code files in the same directory of the Makefile. That's why, the Makefiles create symbolic links to the source files before starting the build, then delete them after building the code.
+
+---
+
+# Installation
+
+## Overview
+This installation of the driver module is very simple, and is mainly done via `insmod`, however, an installation script is provided to support wider options, like debug, add to boot, uninstall, etc...</br>
+The installation firstly builds the driver module code, that's why the minimal build packages are needed as prerequisites (_mentioned in the following sections_).</br>
+User should **run the installation script with every kernel version used** on the machine, and **after every upgrade** to a new kernel version.</br>
+
+## Prerequisites
+Refer to: [Build Prerequisites](https://github.com/cronologic-de/cronologic_linux_kernel#build-prerequisites)
 
 ## Installation Steps
 To install the driver:
