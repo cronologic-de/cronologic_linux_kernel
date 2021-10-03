@@ -47,7 +47,7 @@ The driver is tested on the following **64-bit** distributions:
 # Build the Project
 To build the project, run the make command:
 ```CMD
-$make
+$sudo make
 ```
 
 ## Makefiles and Build Versions
@@ -121,12 +121,12 @@ ls /lib/modules/$(uname -r)/build
 ## Clean the Output Files 
 To clean the project all builds output:
 ```CMD
-make clean
+sudo make clean
 ```
 Or, you can clean a specific build as following:
 ```CMD
-.../src/debug_64$make clean
-.../src/release_64$make clean
+.../src/debug_64$suod make clean
+.../src/release_64$sudo make clean
 ```
 
 ## More Details
@@ -135,23 +135,27 @@ Or, you can clean a specific build as following:
 | Identifier | Description | 
 | ---------- | ----------- |
 |`KERNL_SUPPORTS_PIN_UG` | This identifier is defined when the current kernel version is >= 5.6. </br> Kernel Version 5.6 is the first version introduced `pin_user_pages`, which is used by the driver for DMA APIs.</br>Kernel version is not prefferred to be got using `include <linux/version.h>` and `LINUX_VERSION_CODE` identifier to cover that case when there are more than a kernel version installed on the environment.|
-|`CRONO_KERNEL_MODE`| This identifier is used to differentiate between using the header files by the driver code and using them by userspace and applications code.|
+|`CRONO_KERNEL_MODE`| This identifier is used to differentiate between using the header files by the driver code and using them by userspace and applications code.</br>Hance, it's defined only in the driver module makefiles.|
 |`DEBUG`| Debug mode.|
 
 ### Why There Is a Makefile Per Build
 For creating a kernel module, it's much simpler (_and feasibile_) to have a Makefile per build, rather than having all builds in one Makefile.
 
 ### Create Symbolic Links to Source Files 
-Makefile for kernel module is simpler when having all the source code files in the same directory of the Makefile. That's why, the Makefiles create symbolic links to the source files before starting the build, then delete them after building the code.
+Makefile for kernel module is simpler when having all the source code files in the same directory of the Makefile. 
+
+That's why, the Makefiles create symbolic links to the source files before starting the build, then delete them after building the code.
 
 ---
 
 # Installation
 
 ## Overview
-This installation of the driver module is very simple, and is mainly done via `insmod`, however, an installation script is provided to support wider options, like debug, add to boot, uninstall, etc...</br>
-The installation firstly builds the driver module code, that's why the minimal build packages are needed as prerequisites (_mentioned in the following sections_).</br>
-User should **run the installation script with every kernel version used** on the machine, and **after every upgrade** to a new kernel version.</br>
+This installation of the driver module is very simple, and is mainly done via `insmod`, however, an installation script is provided to support wider options, like debug, add to boot, uninstall, etc...
+
+The installation firstly builds the driver module code, that's why the minimal build packages are needed as prerequisites (_mentioned in the following sections_).
+
+User should **run the installation script with every kernel version used** on the machine, and **after every upgrade** to a new kernel version.
 
 ## Prerequisites
 Refer to: [Build Prerequisites](https://github.com/cronologic-de/cronologic_linux_kernel#build-prerequisites)
@@ -169,6 +173,10 @@ cd cronologic_linux_kernel
 3. Run the installation script:
 ```CMD
 sudo bash ./install.sh
+```
+or, simply, run `insmod`
+```CMD
+sudo insmod ./build/bin/release_64/crono_pci_drvmod.ko
 ```
 4. And, voi la. The driver module name is `crono_pci_drvmod`.
 
@@ -208,14 +216,30 @@ The `debug` build of the driver module prints more information to the kernel mes
 sudo bash ./install.sh -d
 ```
 
-* After successful installation, you should find the module listed using `lsmod`, e.g.
-```CMD
-$ lsmod | grep crono
-crono_pci_drvmod       53248  0
-```
-
 ## Uninstall the Driver
 Run the following command and it will uninstall the driver (if installed), and remove it from boot (if it's there):
 ```CMD
 sudo bash ./install.sh -u
 ```
+
+## What's Happened After Installation
+
+After installing the driver module successfully, the following takes place:
+1. The driver module is listed in the system. You should find the module listed using `lsmod`, e.g.
+```CMD
+$ lsmod | grep crono
+crono_pci_drvmod       53248  0
+```
+2. The system `probes` all installed cronologic devices, and sends them to the driver, which inturns creates a `Misc Driver` _for each device_. You should find the misc drivers on the `/dev` directory:
+```CMD
+ls /dev/crono* -lah
+```
+
+### Miscellaneous Driver Naming Convension
+The misc driver name is consutructed following the macro [CRONO_CONSTRUCT_MISCDEV_NAME](https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/include/crono_driver.h#L80)
+```C
+crono_%02X_%02X%02X%02X%01X, device_id, domain, bus, dev, func
+```
+For example: the misc driver name is `crono_06_0002000` for xTDC4 (Id = 0x06), domain = 0x00, bus = 0x02, device = 0x00, and function = 0x0.
+
+
