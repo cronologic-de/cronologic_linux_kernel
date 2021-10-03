@@ -25,6 +25,15 @@ Access is done by userspace and applications via the following ways:
 
 The driver is designed to be used for all conologic devices that are installed on PCIe or Thunderbolt sockets.
 
+## Architecture
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/75851720/135757078-e01d9b67-afff-400f-b3e8-d58bd814fed3.png" width="75%" height="75%"/>
+</p>
+
+The driver module in this project represents the `Crono Kernel Layer` in the architecture. 
+
+`OS Abstraction Layer` introduced in the [Userspace Repository](https://github.com/cronologic-de/cronologic_linux_usermode) interfaces with the driver module via `ioctl`, mainly to manage DMA buffers.
+
 ##  Directory Structure
     .
     ├── include         # Header files to be included by userspace as well
