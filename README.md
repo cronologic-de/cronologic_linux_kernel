@@ -377,6 +377,8 @@ The driver uses `sg_alloc_table_from_pages` as it optimizes memory (size of retu
 
 A macro is provided to toggle between the two functions, which is `USE__sg_alloc_table_from_pages`. By defining this macro, the code will use `__sg_alloc_table_from_pages` instead.
 
+Use `sg_alloc_table_from_pages` to bind consecutive pages into one DMA descriptor to reduce size of S/G table sent to device.
+
 ## Using `sg_dma_address` To Get DMA Memory Physical Address
 Using `sg_dma_address` is not applicable by “our driver” design when using `sg_alloc_table_from_pages`, while it is theoretically applicable when using `__sg_alloc_table_from_pages` and passing `PAGE_SIZE`. 
 
@@ -386,5 +388,5 @@ Since the driver uses `sg_alloc_table_from_pages`, accordingly, the driver uses 
 
 BTW, I tried `__sg_alloc_table_from_pages`  & `sg_dma_address`, but the addresses didn’t seem to be correct, but I didn’t use it again for the above mentioned reason.
 
-## Formatting
+## Code-style
 The source code files are formatted using `clang-format`, with `LLVM` format and `IndentWidth:     8`.
