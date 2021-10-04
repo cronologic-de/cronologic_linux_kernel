@@ -122,7 +122,7 @@ sudo yum install gcc make
 sudo yum install kernel-devel-$(uname -r)
 ```
 
-### Ubuntu 
+### Debian 
 - Make sure you have **sudo** access.
 - Make sure that both `make` and `gcc` packages are installed, or install them using: 
 ```CMD
