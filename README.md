@@ -364,25 +364,27 @@ For example: the misc driver name is `crono_06_0002000` for xTDC4 (Id = 0x06), d
 
 # The Code
 
-## DMA APIs Handling
+## Design Approaches and Concepts
+
+### DMA APIs Handling
 To satisfy DMA APIs "guards", the driver code takes the following into consideration:
 1. Calls `unpin_user_pages` to pin the user pages, and calls `unpin_user_pages` when done working with it.
 2. Allocates Scatter/Gather table using `sg_alloc_table_from_pages`, while its output is not really needed.
 3. Uses `dma_map_sg` to map the Scatter/Gather table.
 
-## `pin_user_pages` vs `get_user_pages`
+### `pin_user_pages` vs `get_user_pages`
 `pin_user_pages` is introduced, starting Kenrel Version 5.6, to resolve problems caused by `get_user_page` as per [this reference](https://lore.kernel.org/all/20200107224558.2362728-18-jhubbard@nvidia.com/T/#m0f6d21a9ae247a02a763f20c328b884b20f46e03).
 
 The driver uses `pin_user_pages` for kernel versions >= 5.6, and uses `get_user_pages` for kernel versions < 5.6. 
 
 Kernel version is determined in the `Makefile`, based on which, the identifier `KERNL_SUPPORTS_PIN_UG` is defined in case it's >= 5.6.
 
-## `Device` vs `Device Type`
+### `Device` vs `Device Type`
 A PC might have two devices of different types (models): e.g. `xHPTDC8` and `xTDC4`. Each type is called a _device type_. 
 
 This is generalizing the idea for a case that might be rare, where a PC can have two boards of xHPTDC8 installed, that’s why there is an array of devices in every type [crono_device_types_info]https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/src/crono_kernel_module.c#L24. 
 
-## Using `sg_alloc_table_from_pages`
+### Using `sg_alloc_table_from_pages`
 
 The driver uses `sg_alloc_table_from_pages` as it optimizes memory (size of returned pages information) compared to `__sg_alloc_table_from_pages`, especially with huge memory sizes. 
 
@@ -390,7 +392,7 @@ A macro is provided to toggle between the two functions, which is `USE__sg_alloc
 
 Use `sg_alloc_table_from_pages` to bind consecutive pages into one DMA descriptor to reduce size of S/G table sent to device.
 
-## Using `sg_dma_address` To Get DMA Memory Physical Address
+### Using `sg_dma_address` To Get DMA Memory Physical Address
 Using `sg_dma_address` is not applicable by “our driver” design when using `sg_alloc_table_from_pages`, while it is theoretically applicable when using `__sg_alloc_table_from_pages` and passing `PAGE_SIZE`. 
 
 As per Linux documentation, the number of pages returned by `sg_alloc_table_from_pages` is not necessarily equal to the number of input pages, actually in practice it’s much less, while the driver needs the physical address of every page of size `4096`. 
@@ -399,6 +401,6 @@ Since the driver uses `sg_alloc_table_from_pages`, accordingly, the driver uses 
 
 BTW, I tried `__sg_alloc_table_from_pages`  & `sg_dma_address`, but the addresses didn’t seem to be correct, but I didn’t use it again for the above mentioned reason.
 
-## Code-style
+### Code-style
 The source code files are formatted using `clang-format`, with `LLVM` format and `IndentWidth:     8`.
 
