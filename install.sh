@@ -171,7 +171,7 @@ Usage:
     -u  Uninstall the driver and remove it from bood startup.
     -d  Display (D)ebug Messages.
     -h  Display (H)elp and usage and exit.
-\n"
+"
 
 printf "$ABOUT_MSG"
 

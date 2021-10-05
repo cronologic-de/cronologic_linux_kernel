@@ -768,8 +768,7 @@ static int crono_miscdev_open(struct inode *inode, struct file *file) {
 
         pr_debug("Opening device file");
         if (Device_Open) {
-                pr_debug("Devide is busy");
-                return -EBUSY;
+                pr_debug("Device is busy, opened <%d> times", Device_Open);
         }
 
         Device_Open++;
