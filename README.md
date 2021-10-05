@@ -65,8 +65,15 @@ The driver is tested on the following **64-bit** distributions:
 # Build the Project
 To build the project, run `make` command:
 ```CMD
-$sudo make
+$ make
 ```
+
+## Target Output
+The build target output is:
+| Output | Builds | Description | 
+| -------- | ------ | ----------- |
+| `crono_pci_drvmod.ko` | ``./build/bin/release_64/``</br>and</br>``./src/release_64/`` | The release version of the driver |
+| `crono_pci_drvmod.ko` | ``./build/bin/debug_64/``</br>and</br>``./src/debug_64/`` | The debug version of the driver |
 
 ## Makefiles and Build Versions
 The following makefiles are used to build the project versions:
@@ -74,8 +81,8 @@ The following makefiles are used to build the project versions:
 | -------- | ------ | ----------- |
 | ./Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project.|
 | ./src/Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project. |
-| ./src/debug_64/Makefile | Debug | Builds the `debug` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to `./build/bin/debug_64/` directory. </br> Additional debugging information will be printed to the kernel messages displayed using `dmesg`.|
-| ./src/release_64/Makefile | Release | Builds the `release` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to `./build/bin/release_64/` directory. |
+| ./src/debug_64/Makefile | Debug | Builds the `debug` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``./build/bin/debug_64/`` directory. </br> Additional debugging information will be printed to the kernel messages displayed using `dmesg`.|
+| ./src/release_64/Makefile | Release | Builds the `release` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``./build/bin/release_64/`` directory. |
 
 ## Build Prerequisites
 ### Ubuntu 
@@ -150,12 +157,12 @@ ls /lib/modules/$(uname -r)/build
 ## Clean the Output Files 
 To clean the project all builds output:
 ```CMD
-sudo make clean
+make clean
 ```
 Or, you can clean a specific build as following:
 ```CMD
-.../src/debug_64$suod make clean
-.../src/release_64$sudo make clean
+.../src/debug_64$ make clean
+.../src/release_64$ make clean
 ```
 
 ## More Details
