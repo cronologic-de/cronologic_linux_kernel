@@ -5,7 +5,7 @@
 //
 MODULE_DESCRIPTION("cronologic PCI driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("0.9");
+MODULE_VERSION("1.0");
 
 #ifndef CRONO_KERNEL_MODE
 #pragma message("CRONO_KERNEL_MODE must be defined in the kernel module")
