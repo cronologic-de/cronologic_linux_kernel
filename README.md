@@ -412,6 +412,11 @@ A macro is provided to toggle between the two functions, which is `USE__sg_alloc
 
 Use `sg_alloc_table_from_pages` to bind consecutive pages into one DMA descriptor to reduce size of S/G table sent to device.
 
+Using `__sg_alloc_table_from_pages` instead of `sg_alloc_table_from_pages` will increase `swiotlb` buffer, when using `dma_map_sg`, it used 5868 (slots) to 32768 (slots), both ways, buffer is FULL:
+
+``crono_pci_driver 0000:05:00.0: swiotlb buffer is full (sz: 524288 bytes), total 32768 (slots), used 5868 (slots)``
+
+
 ### Using `sg_dma_address` To Get DMA Memory Physical Address
 Using `sg_dma_address` is not applicable by “our driver” design when using `sg_alloc_table_from_pages`, while it is theoretically applicable when using `__sg_alloc_table_from_pages` and passing `PAGE_SIZE`. 
 
