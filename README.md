@@ -416,9 +416,10 @@ Using `__sg_alloc_table_from_pages` instead of `sg_alloc_table_from_pages` will 
 
 ``crono_pci_driver 0000:05:00.0: swiotlb buffer is full (sz: 524288 bytes), total 32768 (slots), used 5868 (slots)``
 
-
 ### Using `sg_dma_address` To Get DMA Memory Physical Address
 Using `sg_dma_address` is not applicable by “our driver” design when using `sg_alloc_table_from_pages`, while it is theoretically applicable when using `__sg_alloc_table_from_pages` and passing `PAGE_SIZE`. 
+
+When using `sg_alloc_table_from_pages` contiguous ranges of the pages are squashed into a single scatterlist entry up to the maximum size, hence, nents are not one-to-one mapped with the pages, so, we can’t really get use of `sg_dma_address` for page physical address.
 
 As per Linux documentation, the number of pages returned by `sg_alloc_table_from_pages` is not necessarily equal to the number of input pages, actually in practice it’s much less, while the driver needs the physical address of every page of size `4096`. 
 
