@@ -52,13 +52,17 @@ The driver is tested on the following **64-bit** distributions:
   - 5.4.0-42-generic
   - 5.10.0-051000-generic
   - 5.11.0-37-generic
-- **CentOS** (CentOS-Stream-8-x86_64-20210927):
+- **CentOS** (CentOS-Stream-8-x86_64-20210927)(**):
   - 5.4.150-1.e18.elrepo.x86_64
   - 5.14.9-1.el8.elrepo.x86_64
-- **Fedora** (Fedora-Workstation-Live-x86_64-34-1.2):
+- **Fedora** (Fedora-Workstation-Live-x86_64-34-1.2)(**):
   - 5.14.9-200.fc34.x86_64
-- **Debian** (Debian GNU/Linux 11 (bullseye))
+- **Debian** (Debian GNU/Linux 11 (bullseye))(**)
   - 5.10.0-8-amd64
+- **openSUSE** Leap 15.3(**)
+  - 5.3.15-59.27-default
+
+(**) Driver code is built successfully, however, the driver was not tested on the devices.
 
 ---
 
@@ -138,6 +142,18 @@ sudo apt-get install make gcc
 - Make sure `modules` and `headers` of your current kernel version are installed, or install them using:
 ```CMD
 sudo apt-get install linux-headers-$(uname -r) 
+```
+
+### openSUSE
+- Make sure you have **sudo** access.
+- Make sure that both `make` and `gcc` packages are installed, or install them using: 
+```CMD
+sudo zypper install make gcc
+```
+- Make sure `modules` and `headers` of your current kernel version are installed, or install them using:
+```CMD
+sudo zypper in kernel-devel kernel-default-devel
+sudo zypper up
 ```
 
 ### General Notes
