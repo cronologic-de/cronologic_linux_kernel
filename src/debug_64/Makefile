@@ -1,0 +1,93 @@
+# -----------------------------------------------------------------------------
+# 					Kernel Module - 64 Bit Debug Build 
+# -----------------------------------------------------------------------------
+
+#_____________________
+# Set global variables
+#
+TARGET 	:= crono_pci_drvmod
+KDIR 	:= /lib/modules/$(shell uname -r)/build
+PWD 	:= $(shell pwd)
+
+# Relative path to /build/bin 
+BLDBINPATH	:= ../../build/bin
+
+# Turn it on to avoid dmesg error `tainting kernel`
+CONFIG_MODULE_SIG=y
+
+# Kernel Version
+KVER := $(shell uname -r)
+KMAJ := $(shell echo $(KVER) | \
+sed -e 's/^\([0-9][0-9]*\)\.[0-9][0-9]*\.[0-9][0-9]*.*/\1/')
+KMIN := $(shell echo $(KVER) | \
+sed -e 's/^[0-9][0-9]*\.\([0-9][0-9]*\)\.[0-9][0-9]*.*/\1/')
+ADD_CCFLAGS_Y=
+# No Indentation Tabs/Spaces in the following ifeq lines please
+ifeq ($(shell if [ $(KMAJ) -gt 5 ] ; then echo $$? ; fi ;),0)
+$(eval ADD_CCFLAGS_Y=-DKERNL_SUPPORTS_PIN_UG)
+endif 
+ifeq ($(shell if [ $(KMAJ) -eq 5 ] && [ $(KMIN) -ge 6 ] ; then echo $$? ; fi ;),0)
+$(eval ADD_CCFLAGS_Y=-DKERNL_SUPPORTS_PIN_UG)
+endif 
+
+#_______________________
+# Set compiler variables
+#
+
+# Target Specs
+obj-m 			+= $(TARGET).o
+$(TARGET)-objs 	+= crono_kernel_module.o 
+
+# Macros & Flags
+ccflags-y 		:= -DCRONO_KERNEL_MODE -DCRONO_DEBUG_ENABLED -DDEBUG=1
+
+# Support pin_user_pages for versions >= 5.6
+ccflags-y 		+= $(ADD_CCFLAGS_Y)
+
+# Include Paths
+ccflags-y 		+= -I$(src)/../../include 
+
+# Architecture
+ccflags-y 		+= -m64
+
+#_______________________
+# Targets
+#
+all:
+	$(call CRONO_CREATE_SYMLINKS)
+	$(MAKE) -C $(KDIR) M=$(PWD) modules ARCH=x86_64
+	$(call CRONO_COPY_DRVMOD_TARGET,$(TARGET).ko,,debug_64)
+	$(call CRONO_CLEAN_SYMLINKS)
+        
+clean:
+	-$(MAKE) -C $(KDIR) M=$(PWD) clean || true
+	$(call CRONO_CLEAN_SYMLINKS)
+	rm -f $(BLDBINPATH)/debug_64/$(TARGET).ko
+
+# _____________________________________________________________________________
+# Custom Functions
+#
+
+# Create symbolic links for source files to be built in this direcotory
+define CRONO_CREATE_SYMLINKS
+	ln -sf $(PWD)/../crono_kernel_module.c $(PWD)/crono_kernel_module.c
+	ln -sf $(PWD)/../crono_kernel_module.h $(PWD)/crono_kernel_module.h
+	ln -sf $(PWD)/../crono_miscdevice.h $(PWD)/crono_miscdevice.h
+endef
+
+# Cleanup symbolic links 
+define CRONO_CLEAN_SYMLINKS
+	rm -f $(PWD)/crono_kernel_module.c
+	rm -f $(PWD)/crono_kernel_module.h
+	rm -f $(PWD)/crono_miscdevice.h
+endef
+
+# $1: Target 
+# $2: Empty
+# $3: Build name (e.g. `release_64`)
+# $(BLDBINPATH) must be defined
+define CRONO_COPY_DRVMOD_TARGET
+	mkdir -p $(BLDBINPATH)/$(3)
+	cp -t $(BLDBINPATH)/$(3) $(1)
+endef
+
