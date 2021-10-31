@@ -167,6 +167,20 @@ Or, you can clean a specific build as following:
 .../src/release_64$ make clean
 ```
 
+## Extras
+* You can check if `make` and `gcc` are installed by running the following commands:
+```CMD
+make -v
+```
+and
+```CMD
+gcc -v
+```
+* You can check if `kernel-devel` is installed on your system by running the following command:
+```CMD
+ls /lib/modules/$(uname -r)/build
+```
+
 ## More Details
 
 ### Preprocessor Directives
@@ -431,19 +445,3 @@ BTW, I tried `__sg_alloc_table_from_pages`  & `sg_dma_address`, but the addresse
 
 ### Code-style
 The source code files are formatted using `clang-format`, with `LLVM` format and `IndentWidth:     8`.
-
----
-
-## Extras
-* You can check if `make` and `gcc` are installed by running the following commands:
-```CMD
-make -v
-```
-and
-```CMD
-gcc -v
-```
-* You can check if `kernel-devel` is installed on your system by running the following command:
-```CMD
-ls /lib/modules/$(uname -r)/build
-```
