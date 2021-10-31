@@ -444,4 +444,4 @@ Since the driver uses `sg_alloc_table_from_pages`, accordingly, the driver uses 
 BTW, I tried `__sg_alloc_table_from_pages`  & `sg_dma_address`, but the addresses didn’t seem to be correct, but I didn’t use it again for the above mentioned reason.
 
 ### Code-style
-The source code files are formatted using `clang-format`, with `LLVM` format and `IndentWidth:     8`.
+The source code files are formatted using `clang-format`, with `LLVM` format and `IndentWidth:     8`, where indentation is preferred to be 8 spaces in kernel source code files.
