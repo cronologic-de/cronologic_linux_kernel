@@ -2,7 +2,7 @@
 #define __CRONO_KERNEL_MODULE_H__
 // _____________________________________________________________________________
 
-#include "crono_driver.h"
+#include "crono_linux_kernel.h"
 #include <linux/kernel.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>

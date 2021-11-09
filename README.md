@@ -342,11 +342,11 @@ Sample code:
 ```
 
 ## Using `ioctl`
-Application should call `ioctl` using both the `miscdev` file name and the corresponding request value defined in `./include/crono_driver.h` with prefix `IOCTL_CRONO_`.
+Application should call `ioctl` using both the `miscdev` file name and the corresponding request value defined in `./include/crono_linux_kernel.h` with prefix `IOCTL_CRONO_`.
 
 Sample code to call `ioctl`:
 ```C
-#include "crono_driver.h"
+#include "crono_linux_kernel.h"
 {
         struct stat miscdev_stat;
         char miscdev_path[PATH_MAX];
@@ -390,7 +390,7 @@ Sample code to call `ioctl`:
 ```
 
 ## Miscellaneous Device Driver Naming Convension
-The misc driver name is consutructed following the macro [CRONO_CONSTRUCT_MISCDEV_NAME](https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/include/crono_driver.h#L80)
+The misc driver name is consutructed following the macro [CRONO_CONSTRUCT_MISCDEV_NAME](https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/include/crono_linux_kernel.h#L80)
 ```C
 crono_%02X_%02X%02X%02X%01X, device_id, domain, bus, dev, func
 ```

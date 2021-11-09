@@ -271,8 +271,8 @@ static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
                                             unsigned long arg) {
         int ret;
         DMASGBufLock_parameters params, arg_orig;
-        CRONO_KERNEL_DMA *pDma = NULL; // Temp for internal handling
-        CRONO_KERNEL_DMA arg_dma_orig; // Temp for internal handling
+        CRONO_KERNEL_DMA_SG *pDma = NULL; // Temp for internal handling
+        CRONO_KERNEL_DMA_SG arg_dma_orig; // Temp for internal handling
         CRONO_KERNEL_DMA_PAGE *Page_orig =
             NULL; // Keep it till after the `copy_to_user`
         CRONO_KERNEL_DMA_PAGE *ppage = NULL;
@@ -522,8 +522,8 @@ static int _crono_miscdev_ioctl_unlock_buffer(struct file *filp,
                                               unsigned long arg) {
         int ret = CRONO_SUCCESS;
         DMASGBufLock_parameters params, arg_orig;
-        CRONO_KERNEL_DMA *pDma = NULL; // Temp for internal handling
-        CRONO_KERNEL_DMA arg_dma_orig;
+        CRONO_KERNEL_DMA_SG *pDma = NULL; // Temp for internal handling
+        CRONO_KERNEL_DMA_SG arg_dma_orig;
         CRONO_KERNEL_DMA_PAGE *Page_orig =
             NULL; // Keep it till after the `copy_to_user`
 

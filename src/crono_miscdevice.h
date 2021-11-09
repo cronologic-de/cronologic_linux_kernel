@@ -16,7 +16,7 @@ static int crono_miscdev_release(struct inode *inode, struct file *file);
  * miscdev ioctl function.
  *
  * @param file[in]: is a valid miscdev file for the device.
- * @param cmd[in]: is a valid miscdev ioctl command defined in 'crono_driver.h`.
+ * @param cmd[in]: is a valid miscdev ioctl command defined in 'crono_linux_kernel.h`.
  * @param arg[in/out]: is a pointer to valid `DMASGBufLock_parameters`
  * structure.
  *
@@ -271,12 +271,12 @@ static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp);
  * working with it.
  *
  * Prerequisites:
- *  - `pDma` of type `CRONO_KERNEL_DMA*` is defined.
+ *  - `pDma` of type `CRONO_KERNEL_DMA_SG*` is defined.
  *  - `IOCTL_VALIDATE_LOCK_PARAMS` is called in the same block {}.
  *
  * @param params[in/out]: a valid `DMASGBufLock_parameters` struct.
- * @param pDma[out]: `CRONO_KERNEL_DMA*`
- * @param arg_dma_orig[out]: `CRONO_KERNEL_DMA`, holds a copy of
+ * @param pDma[out]: `CRONO_KERNEL_DMA_SG*`
+ * @param arg_dma_orig[out]: `CRONO_KERNEL_DMA_SG`, holds a copy of
  * `arg->ppDma[0]`.
  * @param err_goto_label: goto label in case any error is encountered,
  * setting `ret` to error code.
@@ -284,7 +284,7 @@ static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp);
 #define IOCTL_COPY_KERNEL_DMA_FROM_USER(params, pDma, arg_dma_orig,            \
                                         err_goto_label)                        \
         pDma =                                                                 \
-            (CRONO_KERNEL_DMA *)kmalloc(sizeof(CRONO_KERNEL_DMA), GFP_KERNEL); \
+            (CRONO_KERNEL_DMA_SG *)kmalloc(sizeof(CRONO_KERNEL_DMA_SG), GFP_KERNEL); \
         if (NULL == pDma) {                                                    \
                 pr_err("Error allocating DMA struct");                         \
                 ret = -ENOMEM;                                                 \
@@ -299,13 +299,13 @@ static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp);
         pr_debug("Copying DMA structure from address <0x%lx>", params.ulpDma); \
         params.ppDma = &pDma;                                                  \
         if (copy_from_user(pDma, (void __user *)(params.ulpDma),               \
-                           sizeof(CRONO_KERNEL_DMA))) {                        \
+                           sizeof(CRONO_KERNEL_DMA_SG))) {                        \
                 ret = -EFAULT;                                                 \
                 goto err_goto_label;                                           \
         }                                                                      \
         params.ppDma = &pDma;                                                  \
         if (copy_from_user(&arg_dma_orig, (void __user *)(params.ulpDma),      \
-                           sizeof(CRONO_KERNEL_DMA))) {                        \
+                           sizeof(CRONO_KERNEL_DMA_SG))) {                        \
                 ret = -EFAULT;                                                 \
                 goto err_goto_label;                                           \
         }
@@ -322,7 +322,7 @@ static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp);
  *
  * @param arg[in/out]: is `DMASGBufLock_parameters*` (referred as `params`).
  * @param params[in]: a valid `DMASGBufLock_parameters` struct.
- * @param arg_dma_orig[in]: `CRONO_KERNEL_DMA`, holds a copy of `arg->ppDma[0]`.
+ * @param arg_dma_orig[in]: `CRONO_KERNEL_DMA_SG`, holds a copy of `arg->ppDma[0]`.
  * @param Page_orig[out]: is `CRONO_KERNEL_DMA_PAGE *`.
  * @param ret[out]: of type `int`, will be set to the error number in case of
  * error.
@@ -332,10 +332,10 @@ static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp);
 #define IOCTL_COPY_KERNEL_DMA_TO_USER(arg, params, arg_dma_orig, Page_orig,    \
                                       ret, err_goto_label)                     \
         Page_orig = arg_dma_orig.Page;                                         \
-        memcpy(&arg_dma_orig, params.ppDma[0], sizeof(CRONO_KERNEL_DMA));      \
+        memcpy(&arg_dma_orig, params.ppDma[0], sizeof(CRONO_KERNEL_DMA_SG));      \
         arg_dma_orig.Page = Page_orig; /* Restore it */                        \
         if (copy_to_user((void __user *)(params.ulpDma), &arg_dma_orig,        \
-                         sizeof(CRONO_KERNEL_DMA))) {                          \
+                         sizeof(CRONO_KERNEL_DMA_SG))) {                          \
                 ret = -EFAULT;                                                 \
                 goto err_goto_label;                                           \
         }                                                                      \
