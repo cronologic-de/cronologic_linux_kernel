@@ -10,7 +10,7 @@ It has been developed by cronologic GmbH & Co. KG to support the drivers for its
 
 However, the module could be useful to any PCIe developer who is using large buffers that are scattered in PCI space but shall look contiguous in user space. 
 
-The user mode part of the driver is available in a [separate repository](https://github.com/cronologic-de/cronologic_linux_usermode).
+The user mode part of the driver is available in a [separate repository](https://github.com/cronologic-de/crono_pci_linux).
 
 The initial code has been written by [Bassem Ramzy](https://github.com/Bassem-Ramzy) with support from [Richard Weinberger](https://github.com/richardweinberger). It is licensed unter [GPL3](LICENSE).
 
@@ -32,7 +32,7 @@ The driver is designed to be used for all conologic devices that are installed o
 
 The driver module in this project represents the `Crono Kernel Layer` in the architecture. 
 
-`OS Abstraction Layer` introduced in the [Userspace Repository](https://github.com/cronologic-de/cronologic_linux_usermode) interfaces with the driver module via `ioctl`, mainly to manage DMA buffers.
+`OS Abstraction Layer` introduced in the [Userspace Repository](https://github.com/cronologic-de/crono_pci_linux) interfaces with the driver module via `ioctl`, mainly to manage DMA buffers.
 
 ##  Directory Structure
     .
@@ -302,7 +302,7 @@ Userspace and applications can access the device via the following ways:
 1. Using `sysfs`.
 2. Using `ioctl`.
 
-Full code is found in the [userspace repository](https://github.com/cronologic-de/cronologic_linux_usermode).
+Full code is found in the [userspace repository](https://github.com/cronologic-de/crono_pci_linux).
 
 ## Using `sysfs`
 Accessing the `miscdev` via `sysfs` is mainly done via accessing files under directory `/sys/bus/pci/devices/DDDD:BB:DD:F/`. 
