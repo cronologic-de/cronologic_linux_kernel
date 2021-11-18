@@ -76,8 +76,10 @@ $ make
 The build target output is:
 | Output | Builds | Description | 
 | -------- | ------ | ----------- |
-| `crono_pci_drvmod.ko` | ``./build/bin/release_64/``</br>and</br>``./src/release_64/`` | The release version of the driver |
-| `crono_pci_drvmod.ko` | ``./build/bin/debug_64/``</br>and</br>``./src/debug_64/`` | The debug version of the driver |
+| `crono_pci_drvmod.ko` | ``../../../build/linux/bin/release_64/``</br>and</br>``./src/release_64/`` | The release version of the driver. |
+| `crono_pci_drvmod.ko` | ``../../../build/linux/bin/debug_64/``</br>and</br>``./src/debug_64/`` | The debug version of the driver. |
+
+* `build` folder is created on the same level of project folder `cronologic_linux_kernel`, to be shared with all other projects outputs in the same folder.
 
 ## Makefiles and Build Versions
 The following makefiles are used to build the project versions:
@@ -85,8 +87,8 @@ The following makefiles are used to build the project versions:
 | -------- | ------ | ----------- |
 | ./Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project.|
 | ./src/Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project. |
-| ./src/debug_64/Makefile | Debug | Builds the `debug` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``./build/bin/debug_64/`` directory. </br> Additional debugging information will be printed to the kernel messages displayed using `dmesg`.|
-| ./src/release_64/Makefile | Release | Builds the `release` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``./build/bin/release_64/`` directory. |
+| ./src/debug_64/Makefile | Debug | Builds the `debug` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``../../../build/linux/bin/debug_64/`` directory. </br> Additional debugging information will be printed to the kernel messages displayed using `dmesg`.|
+| ./src/release_64/Makefile | Release | Builds the `release` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``../../../build/linux/bin/release_64/`` directory. |
 
 ## Build Prerequisites
 ### Ubuntu 
@@ -228,7 +230,7 @@ sudo bash ./install.sh
 ```
 or, simply, run `insmod`
 ```CMD
-sudo insmod ./build/bin/release_64/crono_pci_drvmod.ko
+sudo insmod ../../../build/linux/bin/release_64/crono_pci_drvmod.ko
 ```
 4. And, voi la. The driver module name is `crono_pci_drvmod`.
 
@@ -253,11 +255,11 @@ sudo insmod ./build/bin/release_64/crono_pci_drvmod.ko
 #### Hints
 * The script installs the `release` build of the driver, however, you can install the `debug` build of the driver, _that is built automatically by the script_, by replaceing the line:
 ```CMD
-DRVR_INST_SRC_PATH="./build/bin/debug_64/$DRVR_FILE_NAME.ko"
+DRVR_INST_SRC_PATH="../build/linux/bin/debug_64/$DRVR_FILE_NAME.ko"
 ```
 with 
 ```CMD
-DRVR_INST_SRC_PATH="./build/bin/release_64/$DRVR_FILE_NAME.ko"
+DRVR_INST_SRC_PATH="../build/linux/bin/release_64/$DRVR_FILE_NAME.ko"
 ```
 The `debug` build of the driver module prints more information to the kernel messages displayed using `dmesg`.
 
