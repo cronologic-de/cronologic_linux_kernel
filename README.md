@@ -354,8 +354,7 @@ Sample code to call `ioctl`:
         char miscdev_path[PATH_MAX];
         char miscdev_name[CRONO_MAX_DEV_NAME_SIZE];
         struct crono_dev_DBDF dbdf = {0, 0, 2, 0};
-         params;
-        $$
+        CRONO_BUFFER_INFO buff_info;
 
         // Get the miscdev file path, e.g. `/dev/crono_06_0002000`
         CRONO_CONSTRUCT_MISCDEV_NAME(miscdev_name, 0x06, dbdf);
@@ -373,12 +372,12 @@ Sample code to call `ioctl`:
                 return -1;
         }
 
-        // Initialize params
-        params.xyz = abc ;
+        // Initialize buffer information
+        buff_info.xyz = abc ;
 
         // Call ioctl
         if (CRONO_SUCCESS !=
-                ioctl(miscdev_fd, IOCTL_CRONO_LOCK_BUFFER, &params)) {
+                ioctl(miscdev_fd, IOCTL_CRONO_LOCK_BUFFER, &buff_info)) {
                 close(miscdev_fd);
                 return -1 ;
         }
