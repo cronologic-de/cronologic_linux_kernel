@@ -8,7 +8,7 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/pci.h>
-#ifndef KERNL_SUPPORTS_PIN_UG
+#ifdef OLD_KERNEL_FOR_PIN
 #include <linux/uaccess.h>
 #endif
 
@@ -100,5 +100,47 @@ struct crono_device_type {
 static int crono_driver_probe(struct pci_dev *dev,
                               const struct pci_device_id *id);
 
+typedef uint64_t DMA_ADDR;
+/**
+ * @brief $$
+ *
+ */
+typedef struct {
+        struct list_head list; // Linux list node info
+
+        CRONO_BUFFER_INFO buff_info;
+
+        void **kernel_pages; // Array of pointers to kernel page `page`. Needed
+                             // to be cached for `unpin_user_pages`.
+        void *sgt; // Scatter/Gather Table that holds the pinned pages.
+        DMA_ADDR *userspace_pages; // Kernel memory has physical addresses of
+                                   // userspace pages. Pages count =
+                                   // `buff_info.pages_count`
+        size_t pinned_size;        // Actual size pinned of the buffer in bytes.
+        uint32_t pinned_pages_nr; // Number of actual pages pinned, needed to be
+                                  // known if pin failed.
+} CRONO_BUFFER_INFO_WRAPPER;
+
+/**
+ * @brief Initialize the Buffer Wrappers list object. This is needed to be done
+ * once, when the driver module is loaded.
+ *
+ * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
+ */
+static int _crono_init_buff_wrappers_list(void);
+
+/**
+ * @brief $$
+ *
+ * @param arg
+ * @param pp_buff_wrapper
+ *
+ * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
+ */
+static int
+_crono_init_buff_wrapper(unsigned long arg,
+                         CRONO_BUFFER_INFO_WRAPPER **pp_buff_wrapper);
+
+static int _crono_debug_list_wrappers(void);
 // _____________________________________________________________________________
 #endif // #define __CRONO_KERNEL_KERNEL_MODULE_H__

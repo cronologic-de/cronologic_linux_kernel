@@ -10,7 +10,7 @@ KDIR 	:= /lib/modules/$(shell uname -r)/build
 PWD 	:= $(shell pwd)
 
 # Relative path to /build/bin 
-BLDBINPATH	:= ../../build/bin
+BLDBINPATH	:= ../../../build/linux/bin
 
 # Turn it on to avoid dmesg error `tainting kernel`
 CONFIG_MODULE_SIG=y
@@ -23,11 +23,11 @@ KMIN := $(shell echo $(KVER) | \
 sed -e 's/^[0-9][0-9]*\.\([0-9][0-9]*\)\.[0-9][0-9]*.*/\1/')
 ADD_CCFLAGS_Y=
 # No Indentation Tabs/Spaces in the following ifeq lines please
-ifeq ($(shell if [ $(KMAJ) -gt 5 ] ; then echo $$? ; fi ;),0)
-$(eval ADD_CCFLAGS_Y=-DKERNL_SUPPORTS_PIN_UG)
+ifeq ($(shell if [ 5 -gt $(KMAJ) ] ; then echo $$? ; fi ;),0)
+$(eval ADD_CCFLAGS_Y=-DOLD_KERNEL_FOR_PIN)
 endif 
-ifeq ($(shell if [ $(KMAJ) -eq 5 ] && [ $(KMIN) -ge 6 ] ; then echo $$? ; fi ;),0)
-$(eval ADD_CCFLAGS_Y=-DKERNL_SUPPORTS_PIN_UG)
+ifeq ($(shell if [ $(KMAJ) -eq 5 ] && [ 6 -ge $(KMIN) ] ; then echo $$? ; fi ;),0)
+$(eval ADD_CCFLAGS_Y=-DOLD_KERNEL_FOR_PIN)
 endif 
 
 #_______________________

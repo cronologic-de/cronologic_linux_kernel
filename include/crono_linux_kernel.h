@@ -1,3 +1,14 @@
+/**
+ * @file crono_linux_kernel.h
+ * @author Bassem Ramzy
+ * @brief File has public macros and function prototypes needed by userspace
+ * applications that communicate with cronologic PCI driver module directly.
+ * @version 0.1
+ * @date 2021-11-09
+ *
+ * @copyright Copyright (c) 2021
+ *
+ */
 #ifndef _CRONO_LINUX_KERNEL_H_
 #define _CRONO_LINUX_KERNEL_H_
 
@@ -8,49 +19,25 @@
 #include <stdint.h>
 #endif // #ifdef CRONO_KERNEL_MODE
 
-/**
- * The header file used by external applications and userspace.
- */
-
 typedef uint64_t DMA_ADDR;
 
 typedef struct {
-        DMA_ADDR pPhysicalAddr; // Physical address of page.
-        uint32_t dwBytes;       // Size of page.
-} CRONO_KERNEL_DMA_PAGE;
+        // Buffer Information
+        void *addr;  // Physical address of buffer, allocated by userspace.
+        size_t size; // Size of the buffer in bytes.
 
-typedef struct {
-        void *pUserAddr; // Beginning of buffer.
-        uint32_t dwBytes; // Size of buffer.
-        uint32_t dwPages; // Number of pages in buffer.
-        CRONO_KERNEL_DMA_PAGE *Page;
-        void **kernel_pages; // Array of page pointers, Needed to be cached for
-                             // `unpin_user_pages` Created, filled and freed by
-                             // the driver module
-        void *sgt; // SG Table. Created, filled and freed by the driver module
-        uint32_t pinned_pages_nr; // Number of actual pages pinned, needed to be
-                                  // known if pin failed
-        uint32_t dwOptions;       // Allocation options:
-} CRONO_KERNEL_DMA_SG;
+        // Pages Information
+        DMA_ADDR *pages; // Pages Physical Addresses, allocated by userspace,
+                         // and filled by Kernel Module. Count of elements =
+                         // `pages_count`.
+        DMA_ADDR upages; // Is used exchangeably with `pages`. It
+                         // is mainly provided for backward compatibility
+                         // with kernel versions earlier than 5.6
+        uint32_t pages_count; // Count pages in `pages`
 
-/**
- * Structure passed to ioctl() in the `arg` parameter.
- */
-typedef struct {
-        unsigned long npages;
-
-        CRONO_KERNEL_DMA_SG **ppDma; // Should be filled as it's the parameter
-                                     // sent in `CRONO_KERNEL_DMASGBufLock`
-        unsigned long ulPage; // Is used exchangeably with `ppDma[0]->Page`. It
-                              // is mainly provided for backword compatibility
-                              // with kernel versions earlier than 5.6
-        unsigned long ulpDma; // Is used exchangeably with `ppDma[0]`. It is
-                              // mainly provided for backword compatibility with
-                              // kernel versions earlier than 5.6
-        void *pBuf;
-        size_t dwDMABufSize;
-        unsigned long dwOptions;
-} DMASGBufLock_parameters;
+        // Kernel Information
+        int id; // Internal kernel ID of the buffer
+} CRONO_BUFFER_INFO;
 
 /**
  * CRONO PCI Driver Name passed in pci_driver structure, and is found under
@@ -87,12 +74,12 @@ struct crono_dev_DBDF {
  * Command value passed to miscdev ioctl() to lock a memory buffer.
  * 'c' is for `cronologic`.
  */
-#define IOCTL_CRONO_LOCK_BUFFER _IOWR('c', 0, DMASGBufLock_parameters *)
+#define IOCTL_CRONO_LOCK_BUFFER _IOWR('c', 0, CRONO_BUFFER_INFO *)
 /**
  * Command value passed to miscdev ioctl() to unlock a memory buffer
- * 'c' is for `cronologic`.
+ * 'c' is for `cronologic`. Passing buffer wrapper ID in kernel module.
  */
-#define IOCTL_CRONO_UNLOCK_BUFFER _IOWR('c', 1, DMASGBufLock_parameters *)
+#define IOCTL_CRONO_UNLOCK_BUFFER _IOWR('c', 1, int *)
 /**
  * Command value passed to miscdev ioctl() to cleanup setup
  */

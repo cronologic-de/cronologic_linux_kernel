@@ -186,7 +186,7 @@ Or, you can clean a specific build as following:
 ### Preprocessor Directives
 | Identifier | Description | 
 | ---------- | ----------- |
-|`KERNL_SUPPORTS_PIN_UG` | This identifier is defined when the current kernel version is >= 5.6. </br> Kernel Version 5.6 is the first version introduced `pin_user_pages`, which is used by the driver for DMA APIs.</br>Kernel version is not prefferred to be got using `include <linux/version.h>` and `LINUX_VERSION_CODE` identifier to cover that case when there are more than a kernel version installed on the environment.|
+|`OLD_KERNEL_FOR_PIN` | This identifier is defined when the current kernel version is < 5.6. </br> Kernel Version 5.6 is the first version introduced `pin_user_pages`, which is used by the driver for DMA APIs.</br>Kernel version is not prefferred to be got using `include <linux/version.h>` and `LINUX_VERSION_CODE` identifier to cover that case when there are more than a kernel version installed on the environment.|
 |`CRONO_KERNEL_MODE`| This identifier is used to differentiate between using the header files by the driver code and using them by userspace and applications code.</br>Hance, it's defined only in the driver module makefiles.|
 |`DEBUG`| Debug mode.|
 
@@ -352,7 +352,8 @@ Sample code to call `ioctl`:
         char miscdev_path[PATH_MAX];
         char miscdev_name[CRONO_MAX_DEV_NAME_SIZE];
         struct crono_dev_DBDF dbdf = {0, 0, 2, 0};
-        DMASGBufLock_parameters params;
+         params;
+        $$
 
         // Get the miscdev file path, e.g. `/dev/crono_06_0002000`
         CRONO_CONSTRUCT_MISCDEV_NAME(miscdev_name, 0x06, dbdf);
@@ -413,7 +414,7 @@ To satisfy DMA APIs "guards", the driver code takes the following into considera
 
 The driver uses `pin_user_pages` for kernel versions >= 5.6, and uses `get_user_pages` for kernel versions < 5.6. 
 
-Kernel version is determined in the `Makefile`, based on which, the identifier `KERNL_SUPPORTS_PIN_UG` is defined in case it's >= 5.6.
+Kernel version is determined in the `Makefile`, based on which, the identifier `OLD_KERNEL_FOR_PIN` is defined in case it's < 5.6.
 
 ### `Device` vs `Device Type`
 A PC might have two devices of different types (models): e.g. `xHPTDC8` and `xTDC4`. Each type is called a _device type_. 
