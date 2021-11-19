@@ -7,26 +7,41 @@
 #include <linux/miscdevice.h>
 
 /**
- * @brief $$
+ * Miscellaneous Device Driver initialization and registration function.
+ * Generate the device name using `CRONO_CONSTRUCT_MISCDEV_NAME`.
  *
- * @param dev_type
- * @param dev
- * @return int
+ * @param dev_type[in/out]: `crono_device_types_info` related object.
+ * @param dev[in]: the device passed in probe function.
+ *
+ * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
  */
 static int _crono_miscdev_type_init(struct crono_device_type *dev_type,
                                     struct pci_dev *dev);
 /**
- * @brief $$
+ * Miscellaneous Device Driver exit function, unregister all registered devices
+ * of device type `dev_type`. It doesn't free any memory related to `dev_type`.s
  *
- * @param dev_type
+ * @param dev_type[in]: a valid device type object.
+ *
+ * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
  */
 static void _crono_miscdev_type_exit(struct crono_device_type *dev_type);
 
+/**
+ * The `open()` function in miscellaneous device driver `file_operations`
+ * structure.
+ */
 static int crono_miscdev_open(struct inode *inode, struct file *file);
+
+/**
+ * The `release()` function in miscellaneous device driver `file_operations`
+ * structure.
+ */
 static int crono_miscdev_release(struct inode *inode, struct file *file);
 
 /**
- * miscdev ioctl function.
+ * The `unlocked_ioctl()` function in miscellaneous device driver
+ * `file_operations` structure.
  *
  * @param file[in]: is a valid miscdev file for the device.
  * @param cmd[in]: is a valid miscdev ioctl command defined in
@@ -157,20 +172,18 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
                                 unsigned long nr_per_call);
 
 /**
- * Unpin, free all memory allocated for `buff_wrapper`, including itself, and
- * remove it from the buffer information wrappers list. It doesn't `unpin` the
- * memory. Memory should have been unpinned prior to calling this function.
- * `buff_wrapper` should have been initialized using
- * `_crono_init_buff_wrapper`.
+ * Unpin, unmap Scatter/Gather list, free all memory allocated for
+ * `buff_wrapper`, and remove it from the buffer information wrappers.
+ * `buff_wrapper` should have been initialized using `_crono_init_buff_wrapper`.
  *
- * @param filp[in]: the file descriptor passed to ioctl.
+ * Caller should free `buff_wrapper`.
+ *
  * @param buff_wrapper[in/out]
  *
  * @return `CRONO_SUCCESS` in case of success, or errno in case of error.
  * `buff_wrapper` should point to a freed memory upon successfulreturn.
  */
-static int _crono_release_buff_wrapper(struct file *filp,
-                                       CRONO_BUFFER_INFO_WRAPPER *buff_wrapper);
+static int _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *buff_wrapper);
 
 /**
  * The user mode part of the device driver adds a couple of register write
@@ -204,12 +217,13 @@ static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp);
  * Adds the wrapper to the buffer information wrappers list.
  * Call `_crono_release_buff_wrapper` when done working with the wrapper.
  *
+ * @param filp[in]: the file descriptor passed to ioctl.
  * @param arg[in]: is a pointer to valid `CRONO_BUFFER_INFO` object in user
  * space memory.
  * @param pp_buff_wrapper[out]
  */
 static int
-_crono_init_buff_wrapper(unsigned long arg,
+_crono_init_buff_wrapper(struct file *filp, unsigned long arg,
                          CRONO_BUFFER_INFO_WRAPPER **pp_buff_wrapper);
 
 /**

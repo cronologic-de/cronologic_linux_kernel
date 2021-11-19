@@ -102,8 +102,8 @@ static int crono_driver_probe(struct pci_dev *dev,
 
 typedef uint64_t DMA_ADDR;
 /**
- * @brief $$
- *
+ * Internal DMA Buffer Information Wrapper, which wraps `buff_info1` object,
+ * adding all members needed internally by the module.
  */
 typedef struct {
         struct list_head list; // Linux list node info
@@ -119,6 +119,7 @@ typedef struct {
         size_t pinned_size;        // Actual size pinned of the buffer in bytes.
         uint32_t pinned_pages_nr; // Number of actual pages pinned, needed to be
                                   // known if pin failed.
+        struct pci_dev *devp;     // Owner device
 } CRONO_BUFFER_INFO_WRAPPER;
 
 /**
@@ -130,17 +131,9 @@ typedef struct {
 static int _crono_init_buff_wrappers_list(void);
 
 /**
- * @brief $$
- *
- * @param arg
- * @param pp_buff_wrapper
- *
- * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
+ * Function displays information about the list of wrappers found in list
+ * `buff_wrappers_head`.
  */
-static int
-_crono_init_buff_wrapper(unsigned long arg,
-                         CRONO_BUFFER_INFO_WRAPPER **pp_buff_wrapper);
-
-static int _crono_debug_list_wrappers(void);
+static void _crono_debug_list_wrappers(void);
 // _____________________________________________________________________________
 #endif // #define __CRONO_KERNEL_KERNEL_MODULE_H__
