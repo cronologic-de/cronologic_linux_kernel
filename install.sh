@@ -132,7 +132,7 @@ KERNEL_BOOT_DIR="/lib/modules/$KERNEL_VERSION/kernel/drivers/pci"
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
     # 64-bit stuff here
     DRVR_FILE_NAME="crono_pci_drvmod"
-    DRVR_INST_SRC_PATH="./build/bin/debug_64/$DRVR_FILE_NAME.ko"
+    DRVR_INST_SRC_PATH="../build/linux/bin/debug_64/$DRVR_FILE_NAME.ko"
 else
     echo "Machine type <${MACHINE_TYPE}> is not supported"
     exit 1
@@ -174,8 +174,6 @@ Usage:
 "
 
 printf "$ABOUT_MSG"
-
-# $$Backup old driver
 
 #
 # Get Script Options __________________________________________________________
