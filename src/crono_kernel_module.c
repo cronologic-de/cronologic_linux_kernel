@@ -770,7 +770,7 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
                  passed_buff_wrapper->pinned_pages_nr);
         unpin_user_pages((struct page **)(passed_buff_wrapper->kernel_pages),
                          passed_buff_wrapper->pinned_pages_nr);
-        pr_info("Done unpinning pages");
+        pr_debug("Done unpinning pages");
 #else
         pr_debug("Putting pages of address = <%p>, and number = <%d>...",
                  passed_buff_wrapper->kernel_pages,
@@ -778,7 +778,7 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
         for (ipage = 0; ipage < passed_buff_wrapper->pinned_pages_nr; ipage++) {
                 put_page(passed_buff_wrapper->kernel_pages[ipage]);
         }
-        pr_info("Done putting pages");
+        pr_debug("Done putting pages");
 #endif
 
         if (NULL != passed_buff_wrapper->sgt) {
@@ -829,8 +829,8 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
         }
         if (NULL != found_buff_wrapper) {
                 list_del(&(temp_buff_wrapper->list));
-                pr_info("Done deleting wrapper <%d> from list",
-                        passed_buff_wrapper->buff_info.id);
+                pr_debug("Done deleting wrapper <%d> from list",
+                         passed_buff_wrapper->buff_info.id);
                 // Don't free temp_buff_wrapper here, caller should free it.
                 // kvfree(temp_buff_wrapper) crashes here.
         } else {
@@ -861,7 +861,7 @@ static int crono_miscdev_open(struct inode *inode, struct file *file) {
         }
 
         Device_Open++;
-        pr_info("Driver open() is called <%d> times", counter++);
+        pr_debug("Driver open() is called <%d> times", counter++);
 
         return CRONO_SUCCESS;
 }
@@ -874,7 +874,7 @@ static int crono_miscdev_release(struct inode *inode, struct file *file) {
         // Decrement the usage count, or else once you opened the file, you'll
         //  never get rid of the module.
 
-        pr_info("Driver release() is called");
+        pr_debug("Driver release() is called");
 
         return CRONO_SUCCESS;
 }
