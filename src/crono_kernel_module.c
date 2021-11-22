@@ -109,8 +109,8 @@ static void __exit crono_driver_exit(void) {
 
         int dt_index = -1;
         struct crono_device_type *dev_type = NULL;
-        struct list_head *pos, *n;
-        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper;
+        struct list_head *pos = NULL, *n = NULL;
+        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
 
         // Unregister all miscdevs
         // Loop on the device types have registered devices
@@ -122,12 +122,14 @@ static void __exit crono_driver_exit(void) {
         // Clean up all buffer information wrappers and list
         pr_info("Cleanup wrappers list...");
         list_for_each_safe(pos, n, &buff_wrappers_head) {
-                _crono_release_buff_wrapper(temp_buff_wrapper);
                 temp_buff_wrapper =
                     list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
                 pr_debug("Found unlocked buffer wrapper: id<%d>",
                          temp_buff_wrapper->buff_info.id);
-                list_del(&temp_buff_wrapper->list);
+                _crono_release_buff_wrapper(temp_buff_wrapper);
+                crono_kvfree(temp_buff_wrapper);
+                // Don't list_del(pos); it's deleted in
+                // `_crono_release_buff_wrapper`
         }
         _crono_debug_list_wrappers();
 
@@ -758,7 +760,7 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
                 return CRONO_SUCCESS;
         }
         pr_debug(
-            "Releasing buffer of wrapper id <%d>, address <%p>, size <%ld>",
+            "Releasing buffer of wrapper: id <%d>, address <%p>, size <%ld>",
             passed_buff_wrapper->buff_info.id,
             passed_buff_wrapper->buff_info.addr,
             passed_buff_wrapper->buff_info.size);
@@ -1049,14 +1051,24 @@ func_err:
 }
 
 static void _crono_debug_list_wrappers(void) {
-
+#ifdef DEBUG
         CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
+        bool wrapper_list_is_empty = true;
+        struct list_head *pos = NULL, *n = NULL;
+
         pr_debug("Listing wrappers...");
-        // Find the related buffer_wrapper in the list
-        list_for_each_entry(temp_buff_wrapper, &buff_wrappers_head, list) {
+        // List the wrappers in the list
+        list_for_each_safe(pos, n, &buff_wrappers_head) {
+                wrapper_list_is_empty = false; // Set the flag
+                temp_buff_wrapper =
+                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
                 pr_debug("- Wrapper<%d>: address <%p>, size<%ld>",
                          temp_buff_wrapper->buff_info.id,
                          temp_buff_wrapper->buff_info.addr,
                          temp_buff_wrapper->buff_info.size);
         }
+        if (wrapper_list_is_empty) {
+                pr_debug("Wrappers list is empty");
+        }
+#endif
 }
