@@ -120,6 +120,9 @@ typedef struct {
         uint32_t pinned_pages_nr; // Number of actual pages pinned, needed to be
                                   // known if pin failed.
         struct pci_dev *devp;     // Owner device
+        int app_pid; // Process ID of the userspace application that owns the
+                     // buffer
+
 } CRONO_BUFFER_INFO_WRAPPER;
 
 /**
@@ -135,5 +138,20 @@ static int _crono_init_buff_wrappers_list(void);
  * `buff_wrappers_head`.
  */
 static void _crono_debug_list_wrappers(void);
+
+/**
+ * Cleanup ALL buffer wrappers
+ *
+ * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
+ */
+static int _crono_release_buffer_wrappers(void);
+
+/**
+ * Cleanup buffer wrappers of current userspace application process.
+ *
+ * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
+ */
+static int _crono_release_buffer_wrappers_cur_proc(void);
+
 // _____________________________________________________________________________
 #endif // #define __CRONO_KERNEL_KERNEL_MODULE_H__

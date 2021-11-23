@@ -17,8 +17,9 @@ MODULE_VERSION("1.0");
 // Makefile
 
 /**
- * The device type entry in the array, has the index = Device ID. e.g. device
- * CRONO_DEVICE_XTDC4 has entry at index 6 in the array.
+ * The array of all device types, every type has its own information.
+ * The device type entry in the array has the index = Device ID. e.g. device
+ * type `CRONO_DEVICE_XTDC4` has its entry at index `6` in the array.
  * Size has an additional `1`, as Device Type ID starts at `1`
  * (Device Type of ID=0 is undefined).
  */
@@ -69,6 +70,7 @@ static int _crono_init_buff_wrappers_list(void) {
         INIT_LIST_HEAD(&buff_wrappers_head);
         return CRONO_SUCCESS;
 }
+
 // _____________________________________________________________________________
 // init & exit
 //
@@ -109,8 +111,6 @@ static void __exit crono_driver_exit(void) {
 
         int dt_index = -1;
         struct crono_device_type *dev_type = NULL;
-        struct list_head *pos = NULL, *n = NULL;
-        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
 
         // Unregister all miscdevs
         // Loop on the device types have registered devices
@@ -119,19 +119,9 @@ static void __exit crono_driver_exit(void) {
         }
         for_each_active_device_types_end;
 
-        // Clean up all buffer information wrappers and list
-        pr_info("Cleanup wrappers list...");
-        list_for_each_safe(pos, n, &buff_wrappers_head) {
-                temp_buff_wrapper =
-                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
-                pr_debug("Found unlocked buffer wrapper: id<%d>",
-                         temp_buff_wrapper->buff_info.id);
-                _crono_release_buff_wrapper(temp_buff_wrapper);
-                crono_kvfree(temp_buff_wrapper);
-                // Don't list_del(pos); it's deleted in
-                // `_crono_release_buff_wrapper`
-        }
-        _crono_debug_list_wrappers();
+        // Release all buffer wrappers, assuming their applications are
+        // terminated
+        _crono_release_buffer_wrappers();
 
         // Unregister the driver
         pr_info("Removing Driver...");
@@ -296,7 +286,8 @@ static long crono_miscdev_ioctl(struct file *filp, unsigned int cmd,
                                 unsigned long arg) {
         int ret = CRONO_SUCCESS;
 
-        pr_debug("ioctl is called for command <%d>", cmd);
+        pr_debug("ioctl is called for command <%d>, PID <%d>", cmd,
+                 task_pid_nr(current));
 
         switch (cmd) {
         case IOCTL_CRONO_LOCK_BUFFER:
@@ -332,8 +323,9 @@ static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
         }
 
         // Pin the buffer, allocate and fill `buff_wrapper.kernel_pages`.
-        pr_info("Locking buffer of size = <%ld>, address = <%p>",
-                buff_wrapper->buff_info.size, buff_wrapper->buff_info.addr);
+        pr_info("Locking buffer: address <0x%p>, size <%ld>, PID <%d>...",
+                buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
+                task_pid_nr(current));
         if (CRONO_SUCCESS != (ret = _crono_miscdev_ioctl_pin_buffer(
                                   filp, buff_wrapper, GUP_NR_PER_CALL))) {
                 goto lock_err;
@@ -374,6 +366,7 @@ static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
                          ipage, buff_wrapper->userspace_pages[ipage]);
         }
 #endif
+        pr_info("Done locking the buffer");
 
         // Cleanup
         return CRONO_SUCCESS;
@@ -408,10 +401,10 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
         // `pin_user_pages`. `kernel_pages` contains virtual address,
         // however, you may DMA to/from that memory using the addresses returned
         // from it
-        pr_info("Allocating kernel pages. Buffer size = <%ld>, pages number = "
-                "<%d>...",
-                buff_wrapper->buff_info.size,
-                buff_wrapper->buff_info.pages_count);
+        pr_debug("Allocating kernel pages. Buffer size = <%ld>, pages number = "
+                 "<%d>...",
+                 buff_wrapper->buff_info.size,
+                 buff_wrapper->buff_info.pages_count);
         // `kvmalloc_array` may return memory that is not physically contiguous.
         buff_wrapper->kernel_pages =
             kvmalloc_array(buff_wrapper->buff_info.pages_count,
@@ -522,7 +515,7 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
                 if (page_index < 5)
                         // Log only first 5 pages
                         pr_debug("ioctl_pin: Kernel Page <%d> is of "
-                                 "physical address <%llx>",
+                                 "physical address <0x%llx>",
                                  page_index,
                                  buff_wrapper->userspace_pages[page_index]);
         }
@@ -536,7 +529,7 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
         buff_wrapper->pinned_size = buff_wrapper->buff_info.size;
 #endif
 
-        pr_info(
+        pr_debug(
             "Successfully Pinned buffer: size = <%ld>, number of pages = <%d>",
             buff_wrapper->buff_info.size, buff_wrapper->buff_info.pages_count);
 
@@ -662,10 +655,10 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
         // With scatter lists, we map a region gathered from several regions
         // If passed_pages_count > SG_MAX_SINGLE_ALLOC (much smaller than 4096),
         // then a chained sg table will be setup
-        pr_info("Allocating SG Table for buffer size = <%ld>, number of "
-                "pages = <%d>...",
-                buff_wrapper->buff_info.size,
-                buff_wrapper->buff_info.pages_count);
+        pr_debug("Allocating SG Table for buffer size = <%ld>, number of "
+                 "pages = <%d>...",
+                 buff_wrapper->buff_info.size,
+                 buff_wrapper->buff_info.pages_count);
 #ifndef USE__sg_alloc_table_from_pages
         ret = sg_alloc_table_from_pages(
             sgt, // The sg table header to use
@@ -704,7 +697,7 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
 
                 return ret;
         }
-        pr_info("Done allocating SG Table");
+        pr_debug("Done allocating SG Table");
 
 #ifdef USE__sg_alloc_table_from_pages
         // Using `__sg_alloc_table_from_pages` results in `nents` number equal
@@ -717,7 +710,7 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
         }
 #endif
 
-        pr_info("Mapping SG...");
+        pr_debug("Mapping SG...");
         mapped_buffers_count =
             dma_map_sg(&devp->dev, sgt->sgl, sgt->nents, DMA_BIDIRECTIONAL);
         // `ret` is the number of DMA buffers to transfer. `dma_map_sg`
@@ -732,10 +725,10 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
 
                 return ret;
         }
-        pr_info("Done mapping SG");
+        pr_debug("Done mapping SG");
 
         pr_debug(
-            "SG Table is allocated of scatter lists total nents number = <%d>"
+            "SG Table is allocated of scatter lists total nents number <%d>"
             ", Mapped buffers count <%d>",
             sgt->nents, mapped_buffers_count);
 
@@ -759,15 +752,18 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
                 pr_debug("Nothing to clean for the buffer");
                 return CRONO_SUCCESS;
         }
-        pr_debug(
-            "Releasing buffer of wrapper: id <%d>, address <%p>, size <%ld>",
-            passed_buff_wrapper->buff_info.id,
-            passed_buff_wrapper->buff_info.addr,
-            passed_buff_wrapper->buff_info.size);
+        pr_info("Releasing buffer: wrapper id <%d>, address <0x%p>, size "
+                "<%ld>, PID<%d>...",
+                passed_buff_wrapper->buff_info.id,
+                passed_buff_wrapper->buff_info.addr,
+                passed_buff_wrapper->buff_info.size,
+                passed_buff_wrapper->app_pid);
 
 #ifndef OLD_KERNEL_FOR_PIN
         // Unpin pages
-        pr_debug("Unpinning pages of address = <%p>, and number = <%d>...",
+        pr_debug("Wrapper<%d>: Unpinning pages of address <0x%p>, number = "
+                 "<%d>...",
+                 passed_buff_wrapper->buff_info.id,
                  passed_buff_wrapper->kernel_pages,
                  passed_buff_wrapper->pinned_pages_nr);
         unpin_user_pages((struct page **)(passed_buff_wrapper->kernel_pages),
@@ -802,19 +798,19 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
         }
 
         // Clean allocated memory for kernel pages
-        pr_debug("Wrapper<%d>: Cleanup kernel_pages <%p>...",
+        pr_debug("Wrapper<%d>: Cleanup kernel pages <%p>...",
                  passed_buff_wrapper->buff_info.id,
                  passed_buff_wrapper->kernel_pages);
         crono_kvfree(passed_buff_wrapper->kernel_pages);
-        pr_debug("Done cleanup wrapper <%d> kernel_pages",
+        pr_debug("Done cleanup wrapper <%d> kernel pages",
                  passed_buff_wrapper->buff_info.id);
 
         // Clean allocated memory for userspace pages
-        pr_debug("Wrapper<%d>: Cleanup userspace_pages <%p>...",
+        pr_debug("Wrapper<%d>: Cleanup userspace pages <%p>...",
                  passed_buff_wrapper->buff_info.id,
                  passed_buff_wrapper->userspace_pages);
         crono_kvfree(passed_buff_wrapper->userspace_pages);
-        pr_debug("Done cleanup wrapper <%d> userspace_pages",
+        pr_debug("Done cleanup wrapper <%d> userspace pages",
                  passed_buff_wrapper->buff_info.id);
 
         // Delete the wrapper from the list
@@ -842,8 +838,8 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
         _crono_debug_list_wrappers();
 
         // Success
-        pr_debug("Done releasing buffer of wrapper id <%d>",
-                 passed_buff_wrapper->buff_info.id);
+        pr_info("Done releasing buffer: wrapper id <%d>",
+                passed_buff_wrapper->buff_info.id);
         return CRONO_SUCCESS;
 }
 
@@ -853,30 +849,26 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
 /* Called when a process tries to open the device file, like
  * "cat /dev/mycharfile"
  */
-static int crono_miscdev_open(struct inode *inode, struct file *file) {
+static int crono_miscdev_open(struct inode *inode, struct file *filp) {
 
-        static int counter = 0;
-
-        pr_debug("Opening device file");
+        pr_debug("Opening device file, for PID<%d>", task_pid_nr(current));
         if (Device_Open) {
                 pr_debug("Device is busy, opened <%d> times", Device_Open);
         }
-
         Device_Open++;
-        pr_debug("Driver open() is called <%d> times", counter++);
-
         return CRONO_SUCCESS;
 }
 
 /* Called when a process closes the device file */
-static int crono_miscdev_release(struct inode *inode, struct file *file) {
+static int crono_miscdev_release(struct inode *inode, struct file *filp) {
 
-        Device_Open--; /* We're now ready for our next caller */
+        pr_debug("Releasing device file, for PID<%d>", task_pid_nr(current));
 
         // Decrement the usage count, or else once you opened the file, you'll
         //  never get rid of the module.
+        Device_Open--;
 
-        pr_debug("Driver release() is called");
+        _crono_release_buffer_wrappers_cur_proc();
 
         return CRONO_SUCCESS;
 }
@@ -972,6 +964,7 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         buff_wrapper->userspace_pages = NULL;
         buff_wrapper->pinned_pages_nr = 0;
         buff_wrapper->sgt = NULL;
+        buff_wrapper->app_pid = task_pid_nr(current);
 
         // Get device pointer
         ret = _crono_get_dev_from_filp(filp, &(buff_wrapper->devp));
@@ -1035,10 +1028,10 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         // Add the buffer to list
         buff_wrapper->buff_info.id = buff_wrappers_new_id;
         list_add(&(buff_wrapper->list), &buff_wrappers_head);
-        pr_debug(
-            "Added internal buffer wrapper. Address <%p>, size <%ld>, id <%d>",
-            buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
-            buff_wrapper->buff_info.id);
+        pr_debug("Added internal buffer wrapper. Address <0x%p>, size <%ld>, "
+                 "id <%d>",
+                 buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
+                 buff_wrapper->buff_info.id);
         buff_wrappers_new_id++;
         _crono_debug_list_wrappers();
 
@@ -1062,13 +1055,63 @@ static void _crono_debug_list_wrappers(void) {
                 wrapper_list_is_empty = false; // Set the flag
                 temp_buff_wrapper =
                     list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
-                pr_debug("- Wrapper<%d>: address <%p>, size<%ld>",
+                pr_debug("- Wrapper<%d>: address <0x%p>, size<%ld>, PID<%d>",
                          temp_buff_wrapper->buff_info.id,
                          temp_buff_wrapper->buff_info.addr,
-                         temp_buff_wrapper->buff_info.size);
+                         temp_buff_wrapper->buff_info.size,
+                         temp_buff_wrapper->app_pid);
         }
         if (wrapper_list_is_empty) {
                 pr_debug("Wrappers list is empty");
         }
 #endif
+}
+
+static int _crono_release_buffer_wrappers() {
+
+        struct list_head *pos = NULL, *n = NULL;
+        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
+
+        // Clean up all buffer information wrappers and list
+        pr_info("Cleanup wrappers list...");
+        list_for_each_safe(pos, n, &buff_wrappers_head) {
+                temp_buff_wrapper =
+                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
+                _crono_release_buff_wrapper(temp_buff_wrapper);
+                crono_kvfree(temp_buff_wrapper);
+                // Don't list_del(pos); it's deleted in
+                // `_crono_release_buff_wrapper`
+        }
+        _crono_debug_list_wrappers();
+        pr_info("Done cleanup wrappers list...");
+
+        return CRONO_SUCCESS;
+}
+
+static int _crono_release_buffer_wrappers_cur_proc() {
+
+        struct list_head *pos = NULL, *n = NULL;
+        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
+        bool no_wrappers_found = true;
+        int app_pid = task_pid_nr(current);
+
+        // Clean up all buffer information wrappers and list
+        pr_info("Cleanup process PID<%d> buffers...", app_pid);
+        list_for_each_safe(pos, n, &buff_wrappers_head) {
+                temp_buff_wrapper =
+                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
+                // Check if the buffer is allocated from the underlying process
+                if (temp_buff_wrapper->app_pid == app_pid) {
+                        no_wrappers_found = false;
+                        _crono_release_buff_wrapper(temp_buff_wrapper);
+                        crono_kvfree(temp_buff_wrapper);
+                }
+        }
+        if (no_wrappers_found) {
+                pr_debug("No buffer wrappers found");
+        }
+        _crono_debug_list_wrappers();
+        pr_info("Done cleanup process PID<%d> wrappers...", app_pid);
+
+        return CRONO_SUCCESS;
 }
