@@ -43,9 +43,6 @@ static struct pci_driver crono_pci_driver = {
     .probe = crono_driver_probe,
 };
 
-// Miscellaneous Device Driver
-static int Device_Open = 0; // Is device open?  Used to prevent multiple
-
 static struct file_operations crono_miscdev_fops = {
     .owner = THIS_MODULE,
 
@@ -140,20 +137,12 @@ static int crono_driver_probe(struct pci_dev *dev,
         int ret = CRONO_SUCCESS;
 
         // Check the device to claim if concerned
-        pr_info("Probe Device, ID = <0x%02X>", dev->device);
+        pr_info("Probe Device, ID <0x%02X>", dev->device);
         if (id->vendor != CRONO_VENDOR_ID)
                 return -EINVAL;
         if ((dev->device > CRONO_DEVICE_DEV_ID_MAX_COUNT) ||
             (dev->device < 0)) {
                 pr_err("Error Device ID <0x%02x> not supported", dev->device);
-                return -EINVAL;
-        }
-
-        // Check it's either PCIe or thunderbolt
-        if (!pci_is_pcie(dev) && !pci_is_thunderbolt_attached(dev)) {
-                pr_err(
-                    "Error Device ID <0x%02x> is neither PCIe nor Thunderbolt",
-                    dev->device);
                 return -EINVAL;
         }
 
@@ -314,7 +303,7 @@ static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
 #ifdef CRONO_DEBUG_ENABLED
         int ipage, loop_count;
 #endif
-        pr_debug("Entered _crono_miscdev_ioctl_lock_buffer");
+        pr_debug("Locking buffer...");
 
         // Validate, initialize, and lock variables
         if (CRONO_SUCCESS !=
@@ -323,7 +312,7 @@ static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
         }
 
         // Pin the buffer, allocate and fill `buff_wrapper.kernel_pages`.
-        pr_info("Locking buffer: address <0x%p>, size <%ld>, PID <%d>...",
+        pr_info("Buffer: address <0x%p>, size <%ld>, PID <%d>",
                 buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
                 task_pid_nr(current));
         if (CRONO_SUCCESS != (ret = _crono_miscdev_ioctl_pin_buffer(
@@ -392,7 +381,8 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
         int ret = CRONO_SUCCESS;
         int page_index;
 
-        pr_debug("Entered _crono_miscdev_ioctl_pin_buffer");
+        pr_debug("Pinning buffer...");
+
         // Validate parameters
         LOGERR_RET_EINVAL_IF_NULL(buff_wrapper,
                                   "Invalid lock buffer parameters");
@@ -591,24 +581,47 @@ static int _crono_miscdev_ioctl_unlock_buffer(struct file *filp,
 static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
                                               unsigned long arg) {
         int ret = CRONO_SUCCESS;
-        struct pci_dev *devp;
+        struct crono_device *crono_dev = NULL;
+        CRONO_KERNEL_CMDS_INFO cmds_info;
 
-        // Get the relevant `pci_dev` object from the internal structure.
-        ret = _crono_get_dev_from_filp(filp, &devp);
-        if (ret != CRONO_SUCCESS) {
+        // Get crono device pointer in internal structure
+        if (CRONO_SUCCESS !=
+            (ret = _crono_get_crono_dev_from_filp(filp, &crono_dev))) {
                 return ret;
         }
 
-        // Disable DMA by clearing the bus master bit. Paired with
-        // pci_set_master()
-        pci_clear_master(devp);
+        // Lock the memeory from user space to kernel space
+        if (copy_from_user(&cmds_info, (void __user *)arg,
+                           sizeof(CRONO_KERNEL_CMDS_INFO))) {
+                pr_err("Error copying user data");
+                return -EFAULT;
+        }
 
-        // PCI device is not in use by the system anymore. This only involves
-        // disabling PCI bus-mastering
-        // Note we don’t actually disable the device until all callers of
-        // pci_enable_device() have called pci_disable_device().
-        pci_disable_device(devp);
-
+        // Get the tranaction commands count and copy them
+        if (crono_dev->cmds_count > CLEANUP_CMD_COUNT) {
+                pr_err("Transaction objects count <%d> is greater than the "
+                       "maximum <%d>",
+                       crono_dev->cmds_count, CLEANUP_CMD_COUNT);
+                crono_dev->cmds_count = CLEANUP_CMD_COUNT;
+        } else {
+                crono_dev->cmds_count = cmds_info.count;
+        }
+        if (copy_from_user(crono_dev->cmds, (void __user *)(cmds_info.utrans),
+                           sizeof(CRONO_KERNEL_CMD) * crono_dev->cmds_count)) {
+                pr_err("Error copying user data");
+                return -EFAULT;
+        }
+        // Copy back all data to userspace memory
+        if (copy_to_user((void __user *)(cmds_info.utrans), crono_dev->cmds,
+                         sizeof(CRONO_KERNEL_CMD) * crono_dev->cmds_count)) {
+                pr_err("Error copying user data");
+                return -EFAULT;
+        }
+        if (copy_to_user((void __user *)arg, &cmds_info,
+                         sizeof(CRONO_KERNEL_CMDS_INFO))) {
+                pr_err("Error copying back buffer information");
+                return -EFAULT;
+        }
         return ret;
 }
 
@@ -643,7 +656,8 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
                 return -ENOMEM;
         }
 
-        // Get the corresponding device structure to be used in `dma_map_sg`
+        // Get the corresponding device structure to be used in
+        // `dma_map_sg`
         ret = _crono_get_dev_from_filp(filp, &devp);
         if (ret != CRONO_SUCCESS) {
                 // Clean up
@@ -652,9 +666,9 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
         }
 
         // Allocate sg_table to hold the scatter/gather segments array.
-        // With scatter lists, we map a region gathered from several regions
-        // If passed_pages_count > SG_MAX_SINGLE_ALLOC (much smaller than 4096),
-        // then a chained sg table will be setup
+        // With scatter lists, we map a region gathered from several
+        // regions If passed_pages_count > SG_MAX_SINGLE_ALLOC (much
+        // smaller than 4096), then a chained sg table will be setup
         pr_debug("Allocating SG Table for buffer size = <%ld>, number of "
                  "pages = <%d>...",
                  buff_wrapper->buff_info.size,
@@ -666,26 +680,29 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
                 ->kernel_pages, // Pointer to an array of page pointers
             buff_wrapper->buff_info
                 .pages_count, // Number of pages in the pages array
-            0, // Offset from start of the first page to the start of a buffer
-            buff_wrapper->buff_info
-                .size, // Number of valid bytes in the buffer (after offset)
+            0, // Offset from start of the first page to the start of a
+               // buffer
+            buff_wrapper->buff_info.size, // Number of valid bytes in
+                                          // the buffer (after offset)
             GFP_KERNEL);
         if (ret)
 #else
         // If the physical address got by `PFN_PHYS`, didn't work, then,
-        // `__sg_alloc_table_from_pages` should be called with `PAGE_SIZE`
-        // parameter, then `sg_dma_address` should be used to fill in the pages
-        // addresses, however, it's not guaranteed that the buffers coming out
-        // of `dma_map_sg` are 1-PAGE-ONLY SIZE.
+        // `__sg_alloc_table_from_pages` should be called with
+        // `PAGE_SIZE` parameter, then `sg_dma_address` should be used
+        // to fill in the pages addresses, however, it's not guaranteed
+        // that the buffers coming out of `dma_map_sg` are 1-PAGE-ONLY
+        // SIZE.
         sg_from_pages = __sg_alloc_table_from_pages(
             sgt, // The sg table header to use
             (struct page **)buff_wrapper
                 ->kernel_pages, // Pointer to an array of page pointers
             buff_wrapper->buff_info
                 .pages_count, // Number of pages in the pages array
-            0, // Offset from start of the first page to the start of a buffer
-            buff_wrapper->buff_info
-                .size, // Number of valid bytes in the buffer (after offset)
+            0, // Offset from start of the first page to the start of a
+               // buffer
+            buff_wrapper->buff_info.size, // Number of valid bytes in
+                                          // the buffer (after offset)
             PAGE_SIZE, NULL, 0, GFP_KERNEL);
         if (PTR_ERR_OR_ZERO(sg_from_pages))
 #endif
@@ -700,9 +717,10 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
         pr_debug("Done allocating SG Table");
 
 #ifdef USE__sg_alloc_table_from_pages
-        // Using `__sg_alloc_table_from_pages` results in `nents` number equal
-        // to Pages Number; while using `sg_alloc_table_from_pages` will most
-        // probably result in a different number of `nents`.
+        // Using `__sg_alloc_table_from_pages` results in `nents` number
+        // equal to Pages Number; while using
+        // `sg_alloc_table_from_pages` will most probably result in a
+        // different number of `nents`.
         if (sgt->nents != buff_wrapper->buff_info.pages_count) {
                 pr_err("Inconsistent SG table elements number with "
                        "number of pages");
@@ -714,8 +732,8 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
         mapped_buffers_count =
             dma_map_sg(&devp->dev, sgt->sgl, sgt->nents, DMA_BIDIRECTIONAL);
         // `ret` is the number of DMA buffers to transfer. `dma_map_sg`
-        // coalesces buffers that are adjacent to each other in memory, so `ret`
-        // may be less than nents.
+        // coalesces buffers that are adjacent to each other in memory,
+        // so `ret` may be less than nents.
         if (mapped_buffers_count < 0) {
                 pr_err("Error mapping SG: <%d>", ret);
 
@@ -727,10 +745,10 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
         }
         pr_debug("Done mapping SG");
 
-        pr_debug(
-            "SG Table is allocated of scatter lists total nents number <%d>"
-            ", Mapped buffers count <%d>",
-            sgt->nents, mapped_buffers_count);
+        pr_debug("SG Table is allocated of scatter lists total nents "
+                 "number <%d>"
+                 ", Mapped buffers count <%d>",
+                 sgt->nents, mapped_buffers_count);
 
         // Success
         return CRONO_SUCCESS;
@@ -829,8 +847,8 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
                 list_del(&(temp_buff_wrapper->list));
                 pr_debug("Done deleting wrapper <%d> from list",
                          passed_buff_wrapper->buff_info.id);
-                // Don't free temp_buff_wrapper here, caller should free it.
-                // kvfree(temp_buff_wrapper) crashes here.
+                // Don't free temp_buff_wrapper here, caller should free
+                // it. kvfree(temp_buff_wrapper) crashes here.
         } else {
                 pr_err("Wrapper<%d>: Not found in wrappers list",
                        passed_buff_wrapper->buff_info.id);
@@ -851,24 +869,20 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
  */
 static int crono_miscdev_open(struct inode *inode, struct file *filp) {
 
-        pr_debug("Opening device file, for PID<%d>", task_pid_nr(current));
-        if (Device_Open) {
-                pr_debug("Device is busy, opened <%d> times", Device_Open);
-        }
-        Device_Open++;
+        pr_debug("Opening device file: minor<%d>, PID<%d>", iminor(inode),
+                 task_pid_nr(current));
+
         return CRONO_SUCCESS;
 }
 
 /* Called when a process closes the device file */
 static int crono_miscdev_release(struct inode *inode, struct file *filp) {
 
-        pr_debug("Releasing device file, for PID<%d>", task_pid_nr(current));
-
-        // Decrement the usage count, or else once you opened the file, you'll
-        //  never get rid of the module.
-        Device_Open--;
+        pr_debug("Releasing device file: minor<%d>, PID<%d>", iminor(inode),
+                 task_pid_nr(current));
 
         _crono_release_buffer_wrappers_cur_proc();
+        _crono_apply_cleanup_commands(inode);
 
         return CRONO_SUCCESS;
 }
@@ -911,29 +925,54 @@ static int _crono_pr_info_DBDF(struct crono_dev_DBDF *dbdf) {
 
 static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp) {
 
-        unsigned int file_drv_minor;
-        int dt_index = -1;
-        struct crono_device_type *dev_type = NULL;
-        int dev_index = -1;
+        int ret = CRONO_SUCCESS;
+        struct crono_device *crono_dev = NULL;
 
+        if (CRONO_SUCCESS !=
+            (ret = _crono_get_crono_dev_from_filp(filp, &crono_dev))) {
+                return ret;
+        }
+        *devpp = crono_dev->dev;
+        return CRONO_SUCCESS;
+}
+
+static int _crono_get_crono_dev_from_filp(struct file *filp,
+                                          struct crono_device **crono_devpp) {
         // Validate parameters
         LOGERR_RET_EINVAL_IF_NULL(filp, "Invalid file to get dev for");
-        LOGERR_RET_EINVAL_IF_NULL(devpp, "Invalid device pointer");
+        LOGERR_RET_EINVAL_IF_NULL(crono_devpp, "Invalid device pointer");
 
         // Get the file descriptor minor to match it with the device
-        file_drv_minor = iminor(filp->f_path.dentry->d_inode);
+        return _crono_get_crono_dev_from_inode(filp->f_path.dentry->d_inode,
+                                               crono_devpp);
+}
+
+static int _crono_get_crono_dev_from_inode(struct inode *miscdev_inode,
+                                           struct crono_device **crono_devpp) {
+        int dt_index = -1;
+        struct crono_device_type *dev_type = NULL;
+        int dev_index = -1, file_drv_minor;
+
+        // Validate parameters
+        LOGERR_RET_EINVAL_IF_NULL(miscdev_inode,
+                                  "Invalid inode to get dev for");
+        LOGERR_RET_EINVAL_IF_NULL(crono_devpp, "Invalid device pointer");
+
+        // Get the file descriptor minor to match it with the device
+        file_drv_minor = iminor(miscdev_inode);
 
         // Loop on the registered devices of every device type
         for_each_dev_of_active_device_types(dev_type, dev_index) {
                 if (dev_type->cdevs[dev_index].miscdev.minor != file_drv_minor)
                         continue;
                 // Found a device with the same minor of the file
-                *devpp = dev_type->cdevs[dev_index].dev;
+                *crono_devpp = &(dev_type->cdevs[dev_index]);
                 return CRONO_SUCCESS;
         }
         for_each_dev_of_active_device_types_end;
 
-        pr_err("Error getting device information from file driver minor: <%d>",
+        pr_err("Error getting device information from file driver "
+               "minor: <%d>",
                file_drv_minor);
 
         // Corresponding device is not found
@@ -949,7 +988,8 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         *buff_wrapper = NULL; // To simplify pointer-to-pointer
 
         if (0 == arg) {
-                pr_err("Invalid parameter `arg` initializing buffer wrapper");
+                pr_err("Invalid parameter `arg` initializing buffer "
+                       "wrapper");
                 return -EINVAL;
         }
 
@@ -966,7 +1006,7 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         buff_wrapper->sgt = NULL;
         buff_wrapper->app_pid = task_pid_nr(current);
 
-        // Get device pointer
+        // Get device pointer in internal structure
         ret = _crono_get_dev_from_filp(filp, &(buff_wrapper->devp));
         if (ret != CRONO_SUCCESS) {
                 goto func_err;
@@ -983,8 +1023,8 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         // Validate address
         LOGERR_RET_EINVAL_IF_NULL(buff_wrapper->buff_info.addr,
                                   "Invalid buffer to be locked");
-        // Validate passed buffer size, and `pages_count` value is consistent
-        // with the passed buffer size
+        // Validate passed buffer size, and `pages_count` value is
+        // consistent with the passed buffer size
         if (buff_wrapper->buff_info.size > ULONG_MAX) {
                 pr_err("Size <%ld> of requested buffer to lock exceeds "
                        "the maximum size allowed",
@@ -994,10 +1034,10 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         }
         if (buff_wrapper->buff_info.pages_count !=
             DIV_ROUND_UP(buff_wrapper->buff_info.size, PAGE_SIZE)) {
-                pr_err(
-                    "Error: incorrect passed pages count <%d>, expected <%ld>",
-                    buff_wrapper->buff_info.pages_count,
-                    DIV_ROUND_UP(buff_wrapper->buff_info.size, PAGE_SIZE));
+                pr_err("Error: incorrect passed pages count <%d>, "
+                       "expected <%ld>",
+                       buff_wrapper->buff_info.pages_count,
+                       DIV_ROUND_UP(buff_wrapper->buff_info.size, PAGE_SIZE));
                 ret = -ENOMEM;
                 goto func_err;
         }
@@ -1013,8 +1053,8 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
                 goto func_err;
         }
 
-        // Locking pages memory in user space. No real copy is needed. All
-        // should be replaced when pinning.
+        // Locking pages memory in user space. No real copy is needed.
+        // All should be replaced when pinning.
         pr_debug("Copying kernel pages structure from address <0x%llx>",
                  buff_wrapper->buff_info.upages);
         if (copy_from_user(buff_wrapper->userspace_pages,
@@ -1028,7 +1068,8 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         // Add the buffer to list
         buff_wrapper->buff_info.id = buff_wrappers_new_id;
         list_add(&(buff_wrapper->list), &buff_wrappers_head);
-        pr_debug("Added internal buffer wrapper. Address <0x%p>, size <%ld>, "
+        pr_debug("Added internal buffer wrapper. Address <0x%p>, size "
+                 "<%ld>, "
                  "id <%d>",
                  buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
                  buff_wrapper->buff_info.id);
@@ -1096,11 +1137,12 @@ static int _crono_release_buffer_wrappers_cur_proc() {
         int app_pid = task_pid_nr(current);
 
         // Clean up all buffer information wrappers and list
-        pr_info("Cleanup process PID<%d> buffers...", app_pid);
+        pr_info("Cleanup process PID<%d> buffers wrappers...", app_pid);
         list_for_each_safe(pos, n, &buff_wrappers_head) {
                 temp_buff_wrapper =
                     list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
-                // Check if the buffer is allocated from the underlying process
+                // Check if the buffer is allocated from the underlying
+                // process
                 if (temp_buff_wrapper->app_pid == app_pid) {
                         no_wrappers_found = false;
                         _crono_release_buff_wrapper(temp_buff_wrapper);
@@ -1111,7 +1153,77 @@ static int _crono_release_buffer_wrappers_cur_proc() {
                 pr_debug("No buffer wrappers found");
         }
         _crono_debug_list_wrappers();
-        pr_info("Done cleanup process PID<%d> wrappers...", app_pid);
+        pr_info("Done cleanup process PID<%d> buffer wrappers...", app_pid);
 
         return CRONO_SUCCESS;
+}
+
+static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
+
+        int ret = CRONO_SUCCESS, bar0, icmd;
+        unsigned long BAR0_base, BAR0_len;
+        uint8_t __iomem *hwmem = NULL; // Memory pointer for the I/O operations
+        struct crono_device *crono_dev = NULL;
+
+        // Validate parameters
+        LOGERR_RET_EINVAL_IF_NULL(miscdev_inode, "Invalid miscdev_inode value");
+
+        // Get `crono_dev` of the passed inode
+        if (CRONO_SUCCESS != (ret = _crono_get_crono_dev_from_inode(
+                                  miscdev_inode, &crono_dev))) {
+                pr_err("Can't find internal information about device of inode: "
+                       "minor <%d>",
+                       iminor(miscdev_inode));
+                return ret;
+        }
+
+        // Validate device has cleanup commands
+        if (0 == crono_dev->cmds_count) {
+                pr_debug("No cleanup commands are found for device <%s>",
+                         crono_dev->name);
+                return CRONO_SUCCESS;
+        }
+
+        // Get BAR memory information, to write cleanup commands on its regiters
+        BAR0_base =
+            pci_resource_start(crono_dev->dev, 0); // '0' for the first BAR
+        if (0 == BAR0_base) {
+                pr_err("Error getting start address of BAR0 of dev <%s>",
+                       crono_dev->name);
+                return -EFAULT;
+        }
+        BAR0_len = pci_resource_len(crono_dev->dev, 0); // '0' for the first BAR
+        pr_debug("BAR0 of device<%s>: Base <0x%lx>, Length <%ld>",
+                 crono_dev->name, BAR0_base, BAR0_len);
+
+        // Request the BAR (I/O resource)
+        bar0 = pci_select_bars(crono_dev->dev, IORESOURCE_MEM);
+
+        // pci_enable_device_mem(pdev);
+        // Request the memory region
+        ret = pci_request_region(crono_dev->dev, bar0, "crono_pci_drvmod");
+        if (ret != 0) {
+                pr_err("Error requesting device <%s> region", crono_dev->name);
+                return ret;
+        }
+
+        // Map provided resource to the local memory pointer
+        hwmem = ioremap(BAR0_base, BAR0_len);
+        if (NULL == hwmem) {
+                pr_err("Error mapping BAR0 memeory");
+                pci_release_region(crono_dev->dev, bar0);
+        }
+        pr_debug("BAR0 memeory is mapped to <%p>", hwmem);
+
+        // Write the commands to the registers
+        for (icmd = 0; icmd < crono_dev->cmds_count; icmd++) {
+                iowrite32(crono_dev->cmds[icmd].data,
+                          hwmem + crono_dev->cmds[icmd].addr);
+        }
+
+        // Cleanup function data and actions
+        pci_release_region(crono_dev->dev, bar0);
+
+        // Close
+        return ret;
 }

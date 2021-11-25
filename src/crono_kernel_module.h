@@ -2,20 +2,36 @@
 #define __CRONO_KERNEL_MODULE_H__
 // _____________________________________________________________________________
 
-#include "crono_linux_kernel.h"
+#include <asm/uaccess.h>
+#include <asm/unistd.h>
+#include <linux/fcntl.h>
 #include <linux/kernel.h>
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/syscalls.h>
+
 #ifdef OLD_KERNEL_FOR_PIN
 #include <linux/uaccess.h>
 #endif
+
+/**
+ * Structure used to hold a clenup command information. One object per
+ * command.
+ */
+typedef struct {
+        uint32_t addr; // From the start address of BAR 0 region
+        uint32_t data; // Use for 32 bit transfer.
+} CRONO_KERNEL_CMD;
+
+#include "crono_linux_kernel.h"
 
 // Copied from crono_kernel_interface.h
 enum { CRONO_KERNEL_PCI_CARDS = 8 }; // Slots max X Functions max
 #define CRONO_VENDOR_ID 0x1A13
 #define CRONO_SUCCESS 0
+#define CLEANUP_CMD_COUNT 16
 
 /**
  * Device information used during the driver lifetime.
@@ -45,6 +61,12 @@ struct crono_device {
          * in probing function, assuming this is safe.
          */
         struct pci_dev *dev;
+
+        /**
+         * Device cleanup commands
+         */
+        CRONO_KERNEL_CMD cmds[CLEANUP_CMD_COUNT];
+        uint32_t cmds_count; // Count of valid entries in `cmds`.
 };
 
 /**
@@ -152,6 +174,16 @@ static int _crono_release_buffer_wrappers(void);
  * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
  */
 static int _crono_release_buffer_wrappers_cur_proc(void);
+
+/**
+ * Apply cleanup commands on registers in the first BAR (0).
+ *
+ * @param miscdev_inode[in]: inode of the underlying miscdev driver, of which,
+ * cleanup commands will run.
+ *
+ * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
+ */
+static int _crono_apply_cleanup_commands(struct inode *miscdev_inode);
 
 // _____________________________________________________________________________
 #endif // #define __CRONO_KERNEL_KERNEL_MODULE_H__

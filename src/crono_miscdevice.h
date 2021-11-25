@@ -213,6 +213,29 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
 static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp);
 
 /**
+ * Get `crono_device` object from misc device inode `miscdev_inode`.
+ *
+ * @param miscdev_inode[in]: valid inode of the misc device file.
+ * @param crono_devpp[out]: pointer to the related `crono_device` object in the
+ * internal structures.
+ *
+ * @returns `CRONO_SUCCESS` in case of success, or `-ENODATA` in case file not
+ */
+static int _crono_get_crono_dev_from_inode(struct inode *miscdev_inode,
+                                           struct crono_device **crono_devpp);
+/**
+ * Get `crono_device` object from misc device file* `filp` object.
+ *
+ * @param filp[in]: valid struct file of the misc device file.
+ * @param crono_devpp[out]: pointer to the related `crono_device` object in the
+ * internal structures.
+ *
+ * @returns `CRONO_SUCCESS` in case of success, or `-ENODATA` in case file not
+ */
+static int _crono_get_crono_dev_from_filp(struct file *filp,
+                                          struct crono_device **crono_devpp);
+
+/**
  * @brief Construct a new 'CRONO_BUFFER_INFO_WRAPPER' object from `arg`.
  * Adds the wrapper to the buffer information wrappers list.
  * Call `_crono_release_buff_wrapper` when done working with the wrapper.
