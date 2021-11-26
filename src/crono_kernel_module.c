@@ -534,7 +534,7 @@ static int _crono_miscdev_ioctl_unlock_buffer(struct file *filp,
         CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
         struct list_head *pos, *n;
 
-        // Lock the memeory from user space to kernel space
+        // Lock the memory from user space to kernel space
         if (0 == arg) {
                 pr_err("Invalid parameter `arg` unlocking buffer");
                 return -EINVAL;
@@ -592,7 +592,7 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
                 return ret;
         }
 
-        // Lock the memeory from user space to kernel space
+        // Lock the memory from user space to kernel space
         if (copy_from_user(&cmds_info, (void __user *)arg,
                            sizeof(CRONO_KERNEL_CMDS_INFO))) {
                 pr_err("Error copying user data");
@@ -1017,7 +1017,7 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
                 goto func_err;
         }
 
-        // Lock the memeory from user space to kernel space
+        // Lock the memory from user space to kernel space
         if (copy_from_user(&(buff_wrapper->buff_info), (void __user *)arg,
                            sizeof(CRONO_BUFFER_INFO))) {
                 pr_err("Error copying user data");
@@ -1218,10 +1218,10 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
         // Map provided resource to the local memory pointer
         hwmem = ioremap(BAR0_base, BAR0_len);
         if (NULL == hwmem) {
-                pr_err("Error mapping BAR0 memeory");
+                pr_err("Error mapping BAR0 memory");
                 pci_release_region(crono_dev->dev, bar0);
         }
-        pr_debug("BAR0 memeory is mapped to <%p>", hwmem);
+        pr_debug("BAR0 memory is mapped to <0x%p>", hwmem);
 
         // Write the commands to the registers
         for (icmd = 0; icmd < crono_dev->cmds_count; icmd++) {
