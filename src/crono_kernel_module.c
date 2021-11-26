@@ -584,6 +584,8 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
         struct crono_device *crono_dev = NULL;
         CRONO_KERNEL_CMDS_INFO cmds_info;
 
+        pr_debug("Setup cleanup commands...");
+
         // Get crono device pointer in internal structure
         if (CRONO_SUCCESS !=
             (ret = _crono_get_crono_dev_from_filp(filp, &crono_dev))) {
@@ -598,6 +600,7 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
         }
 
         // Get the tranaction commands count and copy them
+        pr_debug("Cleanup commands: count <%d>", crono_dev->cmds_count);
         if (crono_dev->cmds_count > CLEANUP_CMD_COUNT) {
                 pr_err("Transaction objects count <%d> is greater than the "
                        "maximum <%d>",
@@ -622,6 +625,8 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
                 pr_err("Error copying back buffer information");
                 return -EFAULT;
         }
+
+        pr_debug("Done setup cleanup commands");
         return ret;
 }
 
@@ -1178,6 +1183,9 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
         }
 
         // Validate device has cleanup commands
+        pr_debug(
+            "Applying cleanup commands: device <%s>, commands count <%d>...",
+            crono_dev->name, crono_dev->cmds_count);
         if (0 == crono_dev->cmds_count) {
                 pr_debug("No cleanup commands are found for device <%s>",
                          crono_dev->name);
@@ -1188,12 +1196,12 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
         BAR0_base =
             pci_resource_start(crono_dev->dev, 0); // '0' for the first BAR
         if (0 == BAR0_base) {
-                pr_err("Error getting start address of BAR0 of dev <%s>",
+                pr_err("Error getting start address of BAR0 of device <%s>",
                        crono_dev->name);
                 return -EFAULT;
         }
         BAR0_len = pci_resource_len(crono_dev->dev, 0); // '0' for the first BAR
-        pr_debug("BAR0 of device<%s>: Base <0x%lx>, Length <%ld>",
+        pr_debug("BAR0 of device <%s>: Base <0x%lx>, Length <%ld>",
                  crono_dev->name, BAR0_base, BAR0_len);
 
         // Request the BAR (I/O resource)
@@ -1217,12 +1225,17 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
 
         // Write the commands to the registers
         for (icmd = 0; icmd < crono_dev->cmds_count; icmd++) {
+                pr_debug("Applying cleanup command: data<%x>, offset<%x>",
+                         crono_dev->cmds[icmd].data,
+                         crono_dev->cmds[icmd].addr);
                 iowrite32(crono_dev->cmds[icmd].data,
                           hwmem + crono_dev->cmds[icmd].addr);
         }
 
         // Cleanup function data and actions
         pci_release_region(crono_dev->dev, bar0);
+        pr_debug("Done applying cleanup commands of device <%s>",
+                 crono_dev->name);
 
         // Close
         return ret;
