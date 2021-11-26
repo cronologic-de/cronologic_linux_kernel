@@ -1225,7 +1225,7 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
 
         // Write the commands to the registers
         for (icmd = 0; icmd < crono_dev->cmds_count; icmd++) {
-                pr_debug("Applying cleanup command: data<%x>, offset<%x>",
+                pr_debug("Applying cleanup command: data<0x%x>, offset<0x%x>",
                          crono_dev->cmds[icmd].data,
                          crono_dev->cmds[icmd].addr);
                 iowrite32(crono_dev->cmds[icmd].data,
