@@ -312,9 +312,9 @@ static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
         }
 
         // Pin the buffer, allocate and fill `buff_wrapper.kernel_pages`.
-        pr_info("Buffer: address <0x%p>, size <%ld>, PID <%d>",
-                buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
-                task_pid_nr(current));
+        pr_debug("Buffer: address <0x%p>, size <%ld>, PID <%d>",
+                 buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
+                 task_pid_nr(current));
         if (CRONO_SUCCESS != (ret = _crono_miscdev_ioctl_pin_buffer(
                                   filp, buff_wrapper, GUP_NR_PER_CALL))) {
                 goto lock_err;
@@ -355,7 +355,8 @@ static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
                          ipage, buff_wrapper->userspace_pages[ipage]);
         }
 #endif
-        pr_info("Done locking the buffer");
+        pr_info("Done locking buffer: wrapper id <%d>",
+                buff_wrapper->buff_info.id);
 
         // Cleanup
         return CRONO_SUCCESS;
@@ -775,12 +776,12 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
                 pr_debug("Nothing to clean for the buffer");
                 return CRONO_SUCCESS;
         }
-        pr_info("Releasing buffer: wrapper id <%d>, address <0x%p>, size "
-                "<%ld>, PID<%d>...",
-                passed_buff_wrapper->buff_info.id,
-                passed_buff_wrapper->buff_info.addr,
-                passed_buff_wrapper->buff_info.size,
-                passed_buff_wrapper->app_pid);
+        pr_debug("Releasing buffer: wrapper id <%d>, address <0x%p>, size "
+                 "<%ld>, PID<%d>...",
+                 passed_buff_wrapper->buff_info.id,
+                 passed_buff_wrapper->buff_info.addr,
+                 passed_buff_wrapper->buff_info.size,
+                 passed_buff_wrapper->app_pid);
 
 #ifndef OLD_KERNEL_FOR_PIN
         // Unpin pages
@@ -1142,7 +1143,7 @@ static int _crono_release_buffer_wrappers_cur_proc() {
         int app_pid = task_pid_nr(current);
 
         // Clean up all buffer information wrappers and list
-        pr_info("Cleanup process PID<%d> buffers wrappers...", app_pid);
+        pr_debug("Cleanup process PID<%d> buffers wrappers...", app_pid);
         list_for_each_safe(pos, n, &buff_wrappers_head) {
                 temp_buff_wrapper =
                     list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
@@ -1158,7 +1159,7 @@ static int _crono_release_buffer_wrappers_cur_proc() {
                 pr_debug("No buffer wrappers found");
         }
         _crono_debug_list_wrappers();
-        pr_info("Done cleanup process PID<%d> buffer wrappers...", app_pid);
+        pr_info("Done cleanup process PID<%d> buffer wrappers", app_pid);
 
         return CRONO_SUCCESS;
 }
