@@ -17,14 +17,16 @@ MODULE_VERSION("1.0");
 // Makefile
 
 /**
- * The array of all device types, every type has its own information.
- * The device type entry in the array has the index = Device ID. e.g. device
- * type `CRONO_DEVICE_XTDC4` has its entry at index `6` in the array.
- * Size has an additional `1`, as Device Type ID starts at `1`
- * (Device Type of ID=0 is undefined).
+ * Static array holds all the registered miscdevs.
+ * Dynamically allocating the miscdev objects has problems with `misc_register`
+ * in static functions in the module.
+ * It's not likely that a crono miscdev is
+ * unregistered in the middle of the array.
  */
-static struct crono_device_type
-    crono_device_types_info[CRONO_DEVICE_DEV_ID_MAX_COUNT + 1];
+static struct crono_miscdev crono_miscdev_pool[CRONO_MAX_MSCDEV_COUNT];
+static uint32_t crono_miscdev_pool_new_index = 0;
+#define RESET_CRONO_MISCDEV(pcrono_miscdev)                                    \
+        memset(pcrono_miscdev, 0, sizeof(struct crono_miscdev));
 
 static const struct pci_device_id crono_pci_device_ids[] = {
     // Get all devices of cronologic Vendor ID
@@ -63,11 +65,6 @@ struct list_head buff_wrappers_head;
  */
 static int buff_wrappers_new_id = 0;
 
-static int _crono_init_buff_wrappers_list(void) {
-        INIT_LIST_HEAD(&buff_wrappers_head);
-        return CRONO_SUCCESS;
-}
-
 // _____________________________________________________________________________
 // init & exit
 //
@@ -77,20 +74,18 @@ static int __init crono_driver_init(void) {
 
         pr_info("Registering PCI Driver...");
 
-        // Reset memory
-        memset(crono_device_types_info, 0,
-               sizeof(struct crono_device_type) *
-                   CRONO_DEVICE_DEV_ID_MAX_COUNT);
+        // Initialize linked lists and global variables
+        // Should be done before calling `pci_register_driver` which will probe
+        // the devices and calls `crono_driver_probe` that uses those global
+        // variables.
+        INIT_LIST_HEAD(&buff_wrappers_head);
+        memset(crono_miscdev_pool, 0,
+               sizeof(struct crono_miscdev) * CRONO_MAX_MSCDEV_COUNT);
 
         // Register the driver, and start probing
         ret = pci_register_driver(&crono_pci_driver);
         if (ret) {
                 pr_err("Error Registering PCI Driver, <%d>!!!", ret);
-                return ret;
-        }
-
-        // Initialize the buffer information wrappers list object
-        if (CRONO_SUCCESS != (ret = _crono_init_buff_wrappers_list())) {
                 return ret;
         }
 
@@ -106,15 +101,40 @@ module_init(crono_driver_init);
 */
 static void __exit crono_driver_exit(void) {
 
-        int dt_index = -1;
-        struct crono_device_type *dev_type = NULL;
+        int icrono_miscdev;
 
-        // Unregister all miscdevs
-        // Loop on the device types have registered devices
-        for_each_active_device_types(dev_type) {
-                _crono_miscdev_type_exit(dev_type);
+        // Unregister all registered devices miscdevs
+        if (crono_miscdev_pool_new_index)
+                pr_info("Unregistering <%d> miscellaneous devices...",
+                        crono_miscdev_pool_new_index);
+
+        for (icrono_miscdev = 0; icrono_miscdev < crono_miscdev_pool_new_index;
+             icrono_miscdev++) {
+
+                if (0 == crono_miscdev_pool[icrono_miscdev].miscdev.minor) {
+                        // Invalid item
+                        pr_debug(
+                            "Invalid item in crono_miscdev_pool, index <%d>",
+                            icrono_miscdev);
+                        continue;
+                }
+                // Deregister the miscdev
+                pr_info(
+                    "Exiting cronologic miscdev driver: <%s>, minor: <%d>...",
+                    crono_miscdev_pool[icrono_miscdev].miscdev.name,
+                    crono_miscdev_pool[icrono_miscdev].miscdev.minor);
+                misc_deregister(&(crono_miscdev_pool[icrono_miscdev].miscdev));
+                // Log to inform deregisteration didn't crash
+                pr_info("Done exiting miscdev driver: <%s>",
+                        crono_miscdev_pool[icrono_miscdev].miscdev.name);
+
+                // Reset the record
+                RESET_CRONO_MISCDEV(&(crono_miscdev_pool[icrono_miscdev]));
         }
-        for_each_active_device_types_end;
+        if (crono_miscdev_pool_new_index) {
+                pr_info("Done unregistering miscellaneous devices");
+                crono_miscdev_pool_new_index = 0;
+        }
 
         // Release all buffer wrappers, assuming their applications are
         // terminated
@@ -123,10 +143,7 @@ static void __exit crono_driver_exit(void) {
         // Unregister the driver
         pr_info("Removing Driver...");
         pci_unregister_driver(&crono_pci_driver);
-        pr_info(
-            "Done removing cronologic PCI driver"); // Code line is unreachable
-                                                    // after unregistering the
-                                                    // driver
+        pr_info("Done removing cronologic PCI driver");
 }
 module_exit(crono_driver_exit);
 
@@ -135,6 +152,7 @@ static int crono_driver_probe(struct pci_dev *dev,
                               const struct pci_device_id *id) {
 
         int ret = CRONO_SUCCESS;
+        struct crono_miscdev *new_crono_miscdev = NULL;
 
         // Check the device to claim if concerned
         pr_info("Probe Device, ID <0x%02X>", dev->device);
@@ -157,12 +175,8 @@ static int crono_driver_probe(struct pci_dev *dev,
         pci_set_master(dev);
 
         // Register a miscdev for this device
-        // Device ID (e.g. 0x06 of xTDC8) is the device type index in the device
-        // types array.
-        crono_device_types_info[dev->device].device_id = dev->device;
-        ret = _crono_miscdev_type_init(&crono_device_types_info[dev->device],
-                                       dev);
-        if (ret) {
+        if (CRONO_SUCCESS !=
+            (ret = _crono_miscdev_init(dev, id, &new_crono_miscdev))) {
                 goto error_miscdev;
         }
 
@@ -172,103 +186,98 @@ static int crono_driver_probe(struct pci_dev *dev,
         // by linux when calling `dma_map_sg`.
         ret = pci_set_dma_mask(dev, DMA_BIT_MASK(64));
         if (ret != CRONO_SUCCESS) {
-                pr_err("Device cannot perform DMA properly on this "
-                       "platform, error <%d>",
+                pr_err("Device cannot perform DMA properly on this platform, "
+                       "error <%d>",
                        ret);
-                return ret;
+
+                goto error_miscdev;
         }
 
+        // Log and return
+        if (NULL != new_crono_miscdev)
+                pr_info("Done probing with minor: <%d>",
+                        new_crono_miscdev->miscdev.minor);
+        else
+                pr_err("Invalid crono_miscdev object of initialized miscdev");
         return ret;
 
 error_miscdev:
         pci_disable_device(dev);
+        // Reset the record
+        if (NULL != new_crono_miscdev)
+                RESET_CRONO_MISCDEV(new_crono_miscdev);
         return ret;
 }
 
 // _____________________________________________________________________________
 // Miscellaneous Device Driver
-static int _crono_miscdev_type_init(struct crono_device_type *dev_type,
-                                    struct pci_dev *dev) {
+char testval[20] = "testval";
+static int _crono_miscdev_init(struct pci_dev *dev,
+                               const struct pci_device_id *id,
+                               struct crono_miscdev **crono_dev) {
 
-        char miscdev_name[CRONO_MAX_DEV_NAME_SIZE];
-        int register_ret;
-        struct miscdevice *new_crono_miscdev_dev;
+        int ret = CRONO_SUCCESS;
+        struct crono_miscdev *new_crono_miscdev = NULL;
 
         // Validations
-        if (dev_type == NULL) {
-                pr_err("Invalid miscdev_type_init argument `dev_type`");
+        if (dev == NULL) {
+                pr_err("Invalid miscdev_type_init argument `dev`");
                 return -EINVAL;
         }
-        if (dev_type->bound_drivers_count == CRONO_KERNEL_PCI_CARDS) {
-                pr_err("miscdev reached maximum count for type of id <%d>",
-                       dev_type->device_id);
-                return -EBUSY;
+        if (id == NULL) {
+                pr_err("Invalid miscdev_type_init argument `id`");
+                return -EINVAL;
+        }
+        if (crono_dev == NULL) {
+                pr_err("Invalid miscdev_type_init argument `crono_dev`");
+                return -EINVAL;
         }
 
-        // Generate the device name
-        // `dev_type->bound_drivers_count` is the index of the new element
-        new_crono_miscdev_dev =
-            &(dev_type->cdevs[dev_type->bound_drivers_count].miscdev);
-        new_crono_miscdev_dev->minor = MISC_DYNAMIC_MINOR;
-        new_crono_miscdev_dev->fops = &crono_miscdev_fops;
-        new_crono_miscdev_dev->name = miscdev_name;
+        // Initialize crono_miscdev and generate the device name
+        new_crono_miscdev = &(crono_miscdev_pool[crono_miscdev_pool_new_index]);
+        new_crono_miscdev->dev = dev;
+        new_crono_miscdev->device_id = dev->device;
+        if (CRONO_SUCCESS !=
+            (ret = _crono_get_DBDF_from_dev(dev, &(new_crono_miscdev->dbdf)))) {
+                goto init_err;
+        }
+        pr_info("Probed device BDBF: <%04X:%02X:%02X.%01X>",
+                new_crono_miscdev->dbdf.domain, new_crono_miscdev->dbdf.bus,
+                new_crono_miscdev->dbdf.dev, new_crono_miscdev->dbdf.func);
 
-        _crono_get_DBDF_from_dev(
-            dev, &(dev_type->cdevs[dev_type->bound_drivers_count].dbdf));
-        _crono_pr_info_DBDF(
-            &(dev_type->cdevs[dev_type->bound_drivers_count].dbdf));
+        CRONO_CONSTRUCT_MISCDEV_NAME(new_crono_miscdev->name,
+                                     new_crono_miscdev->device_id,
+                                     new_crono_miscdev->dbdf);
 
-        CRONO_CONSTRUCT_MISCDEV_NAME(
-            miscdev_name, dev_type->device_id,
-            dev_type->cdevs[dev_type->bound_drivers_count].dbdf);
+        // Initialize the miscdevice object
+        new_crono_miscdev->miscdev.minor = MISC_DYNAMIC_MINOR;
+        new_crono_miscdev->miscdev.fops = &crono_miscdev_fops;
+        new_crono_miscdev->miscdev.name = new_crono_miscdev->name;
 
         pr_info("Initializing cronologic miscdev driver: <%s>...",
-                miscdev_name);
+                new_crono_miscdev->name);
 
         // Register the device driver
-        register_ret = misc_register(new_crono_miscdev_dev);
-        if (register_ret) {
-                pr_err("Can't register misdev: <%s>, error: <%d>", miscdev_name,
-                       register_ret);
-                return register_ret;
+        ret = misc_register(&(new_crono_miscdev->miscdev));
+        if (ret) {
+                pr_err("Can't register misdev: <%s>, error: <%d>",
+                       new_crono_miscdev->miscdev.name, ret);
+                goto init_err;
         }
 
-        // Set the driver internal information
-        strcpy(dev_type->cdevs[dev_type->bound_drivers_count].name,
-               miscdev_name);
-        dev_type->cdevs[dev_type->bound_drivers_count].miscdev.name =
-            dev_type->cdevs[dev_type->bound_drivers_count].name;
-        dev_type->cdevs[dev_type->bound_drivers_count].dev = dev;
-
-        dev_type->bound_drivers_count++;
+        // Increments the new index in the pool for the new device
+        crono_miscdev_pool_new_index++;
 
         // Log and return
-        pr_info("Done with minor: <%d>", new_crono_miscdev_dev->minor);
-        return CRONO_SUCCESS;
-}
+        *crono_dev = new_crono_miscdev;
+        return ret;
 
-static void _crono_miscdev_type_exit(struct crono_device_type *dev_type) {
-
-        int device_index;
-
-        if (NULL == dev_type) {
-                pr_err("Invalid miscdev_type_exit argument `dev_type`");
-                return;
+init_err:
+        // Reset object
+        if (NULL != new_crono_miscdev) {
+                RESET_CRONO_MISCDEV(new_crono_miscdev);
         }
-
-        // Loop on the registered devices of the this device type.
-        for (device_index = 0; device_index < dev_type->bound_drivers_count;
-             device_index++) {
-                pr_info(
-                    "Exiting cronologic miscdev driver: <%s>, minor: <%d>...",
-                    dev_type->cdevs[device_index].miscdev.name,
-                    dev_type->cdevs[device_index].miscdev.minor);
-                misc_deregister(&(dev_type->cdevs[device_index].miscdev));
-
-                // Log to inform deregisteration didn't crash
-                pr_info("Done exiting miscdev driver: <%s>",
-                        dev_type->cdevs[device_index].miscdev.name);
-        }
+        return ret;
 }
 
 static long crono_miscdev_ioctl(struct file *filp, unsigned int cmd,
@@ -582,14 +591,14 @@ static int _crono_miscdev_ioctl_unlock_buffer(struct file *filp,
 static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
                                               unsigned long arg) {
         int ret = CRONO_SUCCESS;
-        struct crono_device *crono_dev = NULL;
+        struct crono_miscdev *crono_miscdev = NULL;
         CRONO_KERNEL_CMDS_INFO cmds_info;
 
         pr_debug("Setup cleanup commands...");
 
         // Get crono device pointer in internal structure
         if (CRONO_SUCCESS !=
-            (ret = _crono_get_crono_dev_from_filp(filp, &crono_dev))) {
+            (ret = _crono_get_crono_dev_from_filp(filp, &crono_miscdev))) {
                 return ret;
         }
 
@@ -601,23 +610,25 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
         }
 
         // Get the tranaction commands count and copy them
-        pr_debug("Cleanup commands: count <%d>", crono_dev->cmds_count);
-        if (crono_dev->cmds_count > CLEANUP_CMD_COUNT) {
+        pr_debug("Cleanup commands: count <%d>", crono_miscdev->cmds_count);
+        if (crono_miscdev->cmds_count > CLEANUP_CMD_COUNT) {
                 pr_err("Transaction objects count <%d> is greater than the "
                        "maximum <%d>",
-                       crono_dev->cmds_count, CLEANUP_CMD_COUNT);
-                crono_dev->cmds_count = CLEANUP_CMD_COUNT;
+                       crono_miscdev->cmds_count, CLEANUP_CMD_COUNT);
+                crono_miscdev->cmds_count = CLEANUP_CMD_COUNT;
         } else {
-                crono_dev->cmds_count = cmds_info.count;
+                crono_miscdev->cmds_count = cmds_info.count;
         }
-        if (copy_from_user(crono_dev->cmds, (void __user *)(cmds_info.utrans),
-                           sizeof(CRONO_KERNEL_CMD) * crono_dev->cmds_count)) {
+        if (copy_from_user(
+                crono_miscdev->cmds, (void __user *)(cmds_info.utrans),
+                sizeof(CRONO_KERNEL_CMD) * crono_miscdev->cmds_count)) {
                 pr_err("Error copying user data");
                 return -EFAULT;
         }
         // Copy back all data to userspace memory
-        if (copy_to_user((void __user *)(cmds_info.utrans), crono_dev->cmds,
-                         sizeof(CRONO_KERNEL_CMD) * crono_dev->cmds_count)) {
+        if (copy_to_user((void __user *)(cmds_info.utrans), crono_miscdev->cmds,
+                         sizeof(CRONO_KERNEL_CMD) *
+                             crono_miscdev->cmds_count)) {
                 pr_err("Error copying user data");
                 return -EFAULT;
         }
@@ -870,9 +881,6 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
 // _____________________________________________________________________________
 // Methods
 //
-/* Called when a process tries to open the device file, like
- * "cat /dev/mycharfile"
- */
 static int crono_miscdev_open(struct inode *inode, struct file *filp) {
 
         pr_debug("Opening device file: minor<%d>, PID<%d>", iminor(inode),
@@ -881,7 +889,6 @@ static int crono_miscdev_open(struct inode *inode, struct file *filp) {
         return CRONO_SUCCESS;
 }
 
-/* Called when a process closes the device file */
 static int crono_miscdev_release(struct inode *inode, struct file *filp) {
 
         pr_debug("Releasing device file: minor<%d>, PID<%d>", iminor(inode),
@@ -918,21 +925,10 @@ static int _crono_get_DBDF_from_dev(struct pci_dev *dev,
         return CRONO_SUCCESS;
 }
 
-static int _crono_pr_info_DBDF(struct crono_dev_DBDF *dbdf) {
-
-        if (NULL == dbdf)
-                return -EINVAL;
-
-        pr_info("Device BDBF: <%04X:%02X:%02X.%01X>", dbdf->domain, dbdf->bus,
-                dbdf->dev, dbdf->func);
-
-        return CRONO_SUCCESS;
-}
-
 static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp) {
 
         int ret = CRONO_SUCCESS;
-        struct crono_device *crono_dev = NULL;
+        struct crono_miscdev *crono_dev = NULL;
 
         if (CRONO_SUCCESS !=
             (ret = _crono_get_crono_dev_from_filp(filp, &crono_dev))) {
@@ -943,7 +939,7 @@ static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp) {
 }
 
 static int _crono_get_crono_dev_from_filp(struct file *filp,
-                                          struct crono_device **crono_devpp) {
+                                          struct crono_miscdev **crono_devpp) {
         // Validate parameters
         LOGERR_RET_EINVAL_IF_NULL(filp, "Invalid file to get dev for");
         LOGERR_RET_EINVAL_IF_NULL(crono_devpp, "Invalid device pointer");
@@ -953,33 +949,33 @@ static int _crono_get_crono_dev_from_filp(struct file *filp,
                                                crono_devpp);
 }
 
-static int _crono_get_crono_dev_from_inode(struct inode *miscdev_inode,
-                                           struct crono_device **crono_devpp) {
-        int dt_index = -1;
-        struct crono_device_type *dev_type = NULL;
-        int dev_index = -1, file_drv_minor;
+static int
+_crono_get_crono_dev_from_inode(struct inode *miscdev_inode,
+                                struct crono_miscdev **ppcrono_miscdev) {
+
+        int passed_drv_minor, icrono_miscdev;
 
         // Validate parameters
         LOGERR_RET_EINVAL_IF_NULL(miscdev_inode,
                                   "Invalid inode to get dev for");
-        LOGERR_RET_EINVAL_IF_NULL(crono_devpp, "Invalid device pointer");
+        LOGERR_RET_EINVAL_IF_NULL(ppcrono_miscdev, "Invalid device pointer");
 
         // Get the file descriptor minor to match it with the device
-        file_drv_minor = iminor(miscdev_inode);
+        passed_drv_minor = iminor(miscdev_inode);
 
         // Loop on the registered devices of every device type
-        for_each_dev_of_active_device_types(dev_type, dev_index) {
-                if (dev_type->cdevs[dev_index].miscdev.minor != file_drv_minor)
+        for (icrono_miscdev = 0; icrono_miscdev < crono_miscdev_pool_new_index;
+             icrono_miscdev++) {
+                if (crono_miscdev_pool[icrono_miscdev].miscdev.minor !=
+                    passed_drv_minor) {
                         continue;
+                }
                 // Found a device with the same minor of the file
-                *crono_devpp = &(dev_type->cdevs[dev_index]);
+                *ppcrono_miscdev = &(crono_miscdev_pool[icrono_miscdev]);
                 return CRONO_SUCCESS;
         }
-        for_each_dev_of_active_device_types_end;
-
-        pr_err("Error getting device information from file driver "
-               "minor: <%d>",
-               file_drv_minor);
+        pr_err("Miscdev is not found in internal list: minor: <%d>",
+               passed_drv_minor);
 
         // Corresponding device is not found
         return -ENODATA;
@@ -1074,7 +1070,7 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         // Add the buffer to list
         buff_wrapper->buff_info.id = buff_wrappers_new_id;
         list_add(&(buff_wrapper->list), &buff_wrappers_head);
-        pr_debug("Added internal buffer wrapper. Address <0x%p>, size "
+        pr_debug("Added buffer wrapper to internal list. Address <0x%p>, size "
                  "<%ld>, "
                  "id <%d>",
                  buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
@@ -1169,7 +1165,7 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
         int ret = CRONO_SUCCESS, bar0, icmd;
         unsigned long BAR0_base, BAR0_len;
         uint8_t __iomem *hwmem = NULL; // Memory pointer for the I/O operations
-        struct crono_device *crono_dev = NULL;
+        struct crono_miscdev *crono_dev = NULL;
 
         // Validate parameters
         LOGERR_RET_EINVAL_IF_NULL(miscdev_inode, "Invalid miscdev_inode value");
@@ -1177,33 +1173,37 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
         // Get `crono_dev` of the passed inode
         if (CRONO_SUCCESS != (ret = _crono_get_crono_dev_from_inode(
                                   miscdev_inode, &crono_dev))) {
-                pr_err("Can't find internal information about device of inode: "
+                pr_err("Can't find internal information about device "
+                       "of inode: "
                        "minor <%d>",
                        iminor(miscdev_inode));
                 return ret;
         }
 
         // Validate device has cleanup commands
-        pr_debug(
-            "Applying cleanup commands: device <%s>, commands count <%d>...",
-            crono_dev->name, crono_dev->cmds_count);
+        pr_debug("Applying cleanup commands: device <%s>, commands "
+                 "count <%d>...",
+                 crono_dev->miscdev.name, crono_dev->cmds_count);
         if (0 == crono_dev->cmds_count) {
                 pr_debug("No cleanup commands are found for device <%s>",
-                         crono_dev->name);
+                         crono_dev->miscdev.name);
                 return CRONO_SUCCESS;
         }
 
-        // Get BAR memory information, to write cleanup commands on its regiters
-        BAR0_base =
-            pci_resource_start(crono_dev->dev, 0); // '0' for the first BAR
+        // Get BAR memory information, to write cleanup commands on its
+        // regiters
+        BAR0_base = pci_resource_start(crono_dev->dev,
+                                       0); // '0' for the first BAR
         if (0 == BAR0_base) {
-                pr_err("Error getting start address of BAR0 of device <%s>",
-                       crono_dev->name);
+                pr_err("Error getting start address of BAR0 of device "
+                       "<%s>",
+                       crono_dev->miscdev.name);
                 return -EFAULT;
         }
-        BAR0_len = pci_resource_len(crono_dev->dev, 0); // '0' for the first BAR
+        BAR0_len = pci_resource_len(crono_dev->dev,
+                                    0); // '0' for the first BAR
         pr_debug("BAR0 of device <%s>: Base <0x%lx>, Length <%ld>",
-                 crono_dev->name, BAR0_base, BAR0_len);
+                 crono_dev->miscdev.name, BAR0_base, BAR0_len);
 
         // Request the BAR (I/O resource)
         bar0 = pci_select_bars(crono_dev->dev, IORESOURCE_MEM);
@@ -1212,7 +1212,8 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
         // Request the memory region
         ret = pci_request_region(crono_dev->dev, bar0, "crono_pci_drvmod");
         if (ret != 0) {
-                pr_err("Error requesting device <%s> region", crono_dev->name);
+                pr_err("Error requesting device <%s> region",
+                       crono_dev->miscdev.name);
                 return ret;
         }
 
@@ -1226,17 +1227,21 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
 
         // Write the commands to the registers
         for (icmd = 0; icmd < crono_dev->cmds_count; icmd++) {
-                pr_debug("Applying cleanup command: data<0x%x>, offset<0x%x>",
-                         crono_dev->cmds[icmd].data,
-                         crono_dev->cmds[icmd].addr);
                 iowrite32(crono_dev->cmds[icmd].data,
                           hwmem + crono_dev->cmds[icmd].addr);
+        }
+        // Log outside the registers writing loop
+        for (icmd = 0; icmd < crono_dev->cmds_count; icmd++) {
+                pr_debug("Applied cleanup command: data<0x%x>, "
+                         "offset<0x%x>",
+                         crono_dev->cmds[icmd].data,
+                         crono_dev->cmds[icmd].addr);
         }
 
         // Cleanup function data and actions
         pci_release_region(crono_dev->dev, bar0);
         pr_debug("Done applying cleanup commands of device <%s>",
-                 crono_dev->name);
+                 crono_dev->miscdev.name);
 
         // Close
         return ret;

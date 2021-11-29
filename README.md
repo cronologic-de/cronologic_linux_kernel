@@ -352,7 +352,7 @@ Sample code to call `ioctl`:
 {
         struct stat miscdev_stat;
         char miscdev_path[PATH_MAX];
-        char miscdev_name[CRONO_MAX_DEV_NAME_SIZE];
+        char miscdev_name[CRONO_DEV_NAME_MAX_SIZE];
         struct crono_dev_DBDF dbdf = {0, 0, 2, 0};
         CRONO_BUFFER_INFO buff_info;
 

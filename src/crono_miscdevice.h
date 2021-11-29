@@ -10,23 +10,15 @@
  * Miscellaneous Device Driver initialization and registration function.
  * Generate the device name using `CRONO_CONSTRUCT_MISCDEV_NAME`.
  *
- * @param dev_type[in/out]: `crono_device_types_info` related object.
+ * @param crono_dev[in/out]: `crono_miscdev` related object, initialzied with
+ * id.
  * @param dev[in]: the device passed in probe function.
  *
  * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
  */
-static int _crono_miscdev_type_init(struct crono_device_type *dev_type,
-                                    struct pci_dev *dev);
-/**
- * Miscellaneous Device Driver exit function, unregister all registered devices
- * of device type `dev_type`. It doesn't free any memory related to `dev_type`.s
- *
- * @param dev_type[in]: a valid device type object.
- *
- * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
- */
-static void _crono_miscdev_type_exit(struct crono_device_type *dev_type);
-
+static int _crono_miscdev_init(struct pci_dev *dev,
+                               const struct pci_device_id *id,
+                               struct crono_miscdev **crono_dev);
 /**
  * The `open()` function in miscellaneous device driver `file_operations`
  * structure.
@@ -64,15 +56,6 @@ static long crono_miscdev_ioctl(struct file *file, unsigned int cmd,
  */
 static int _crono_get_DBDF_from_dev(struct pci_dev *dev,
                                     struct crono_dev_DBDF *dbdf);
-
-/**
- * Calls pr_info for a formatted DDDD:BB:DD.F output.
- *
- * @param dbdf[in]: is a valid pinter to the structure to be printed.
- *
- * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
- */
-static int _crono_pr_info_DBDF(struct crono_dev_DBDF *dbdf);
 
 /**
  * Internal function that locks a memory buffer using ioctl().
@@ -213,27 +196,28 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
 static int _crono_get_dev_from_filp(struct file *filp, struct pci_dev **devpp);
 
 /**
- * Get `crono_device` object from misc device inode `miscdev_inode`.
+ * Get `crono_miscdev` object from misc device inode `miscdev_inode`.
  *
  * @param miscdev_inode[in]: valid inode of the misc device file.
- * @param crono_devpp[out]: pointer to the related `crono_device` object in the
- * internal structures.
+ * @param ppcrono_miscdev[out]: pointer to the related `crono_miscdev` object in
+ * the internal structures.
  *
  * @returns `CRONO_SUCCESS` in case of success, or `-ENODATA` in case file not
  */
-static int _crono_get_crono_dev_from_inode(struct inode *miscdev_inode,
-                                           struct crono_device **crono_devpp);
+static int
+_crono_get_crono_dev_from_inode(struct inode *miscdev_inode,
+                                struct crono_miscdev **ppcrono_miscdev);
 /**
- * Get `crono_device` object from misc device file* `filp` object.
+ * Get `crono_miscdev` object from misc device file* `filp` object.
  *
  * @param filp[in]: valid struct file of the misc device file.
- * @param crono_devpp[out]: pointer to the related `crono_device` object in the
+ * @param crono_devpp[out]: pointer to the related `crono_miscdev` object in the
  * internal structures.
  *
  * @returns `CRONO_SUCCESS` in case of success, or `-ENODATA` in case file not
  */
 static int _crono_get_crono_dev_from_filp(struct file *filp,
-                                          struct crono_device **crono_devpp);
+                                          struct crono_miscdev **crono_devpp);
 
 /**
  * @brief Construct a new 'CRONO_BUFFER_INFO_WRAPPER' object from `arg`.
@@ -270,67 +254,6 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
  */
 #define LOGERR_RET_EINVAL_IF_NULL(val, err_msg)                                \
         LOGERR_RET_ERRNO_IF_NULL(val, err_msg, -EINVAL)
-
-/**
- * Loops on `crono_device_types_info` array, and passes types have registered
- * devices. Code following this macro will guarantee that `dev_type` has at
- * least one device registered, and is of index = `dt_index` in this array.
- *
- * The following local variables can be used as following:
- *  `dt_index`: loop index that will contain the index of the device type
- *              in array `crono_device_types_info`.
- *  `dev_type`: a pointer to `crono_device_type` struct object holds pointer to
- *              the registerd device in `crono_device_types_info`.
- *
- * Prerequisites:
- *  - `dt_index` of type `int' is defined.
- *  - `dev_type` of type `struct crono_device_type*` is defined.
- *
- * Macro block must be closed using `for_each_active_device_types_end`.
- */
-#define for_each_active_device_types(dev_type)                                 \
-        for (dt_index = 0; dt_index < CRONO_DEVICE_DEV_ID_MAX_COUNT;           \
-             dt_index++) {                                                     \
-                if (0 ==                                                       \
-                    crono_device_types_info[dt_index].bound_drivers_count)     \
-                        continue;                                              \
-                dev_type = &crono_device_types_info[dt_index];
-/**
- * Macro must be used to close code block of `for_each_active_device_types`
- */
-#define for_each_active_device_types_end }
-/**
- * Loop on `crono_device_types_info` array active types, and passe devices.
- * Code following this macro will guarantee that `dev_type` has at least
- * one device registered, and is of index = `dt_index` in this array.
- * And, iteration device of this type is of index = `dev_index`.
- *
- * The following local variables are defined, and can be used as following:
- *  `dt_index`:  loop index that will contain the index of the device type
- *               in array `crono_device_types_info`.
- *  `dev_type`:  a pointer to `crono_device_type` struct object in
- *               `crono_device_types_info` holds the registerd device(s) in.
- *  `dev_index`: loop index that contain the index of the registered device
- *               in `crono_device_types_info` member arrays.
- *
- * Prerequisites:
- *  - of `iterate_active_device_types`.
- *  - `dev_index` of type `int` is defined.
- *
- * Macro block must be closed using `end_iterate_devs_of_active_device_types`.
- */
-#define for_each_dev_of_active_device_types(dev_type, dev_index)               \
-        for_each_active_device_types(dev_type) {                               \
-                for (dev_index = 0; dev_index < dev_type->bound_drivers_count; \
-                     dev_index++) {
-/**
- * Macro must be used to close code block of
- * `iterate_devs_of_active_device_types`
- */
-#define for_each_dev_of_active_device_types_end                                \
-        }                                                                      \
-        }                                                                      \
-        for_each_active_device_types_end;
 
 #ifdef pr_fmt
 #undef pr_fmt
