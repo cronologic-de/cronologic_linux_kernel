@@ -448,3 +448,28 @@ BTW, I tried `__sg_alloc_table_from_pages`  & `sg_dma_address`, but the addresse
 ### Code-style
 The source code files are formatted using `clang-format`, with `LLVM` format and `IndentWidth:     8`.
 
+---
+
+# A sample `dmesg` output
+## Release
+Sample `dmesg` output when successfully installing the driver, running the xTDC4 user guide example, then remove the module:
+```CMD
+[  845.504198] crono: Registering PCI Driver...
+[  845.504213] crono: Probe Device, ID <0x06>
+[  845.504236] crono: Probed device BDBF: <0000:03:00.0>
+[  845.504237] crono: Initializing cronologic miscdev driver: <crono_06_0003000>...
+[  845.504349] crono: Done probing with minor: <116>
+[  845.504367] crono: Done registering cronologic PCI driver
+[  851.814986] crono: Done locking buffer: wrapper id <0>
+[  851.815269] crono: Done locking buffer: wrapper id <1>
+[  851.948633] crono: Done releasing buffer: wrapper id <0>
+[  851.948793] crono: Done releasing buffer: wrapper id <1>
+[  851.955006] crono: Done cleanup process PID<7858> buffer wrappers
+[  860.159463] crono: Unregistering <1> miscellaneous devices...
+[  860.159464] crono: Exiting cronologic miscdev driver: <crono_06_0003000>, minor: <116>...
+[  860.159570] crono: Done exiting miscdev driver: <crono_06_0003000>
+[  860.159572] crono: Done unregistering miscellaneous devices
+[  860.159572] crono: Cleanup wrappers list...
+[  860.159572] crono: Done cleanup wrappers list...
+[  860.159573] crono: Removing Driver...
+```
