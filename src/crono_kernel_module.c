@@ -487,7 +487,7 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
                 pr_err("get_user_pages is called with error return <%ld>",
                        actual_pinned_nr_of_call);
                 up_read(&current->mm->mmap_sem);
-                _crono_release_buff_wrapper(buffer_wrapper);
+                _crono_release_buff_wrapper(buff_wrapper);
                 return -EFAULT;
         }
         up_read(&current->mm->mmap_sem);

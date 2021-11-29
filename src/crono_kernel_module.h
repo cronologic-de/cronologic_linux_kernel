@@ -2,7 +2,6 @@
 #define __CRONO_KERNEL_MODULE_H__
 // _____________________________________________________________________________
 
-#include <asm/uaccess.h>
 #include <asm/unistd.h>
 #include <linux/fcntl.h>
 #include <linux/kernel.h>
@@ -10,6 +9,7 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/sched.h>
 #include <linux/syscalls.h>
 
 #ifdef OLD_KERNEL_FOR_PIN
