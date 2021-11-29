@@ -2,6 +2,9 @@
 # 					Kernel Module - 64 Bit Release Build 
 # -----------------------------------------------------------------------------
 
+# Fedora signature consideration
+CONFIG_MODULE_SIG=n
+
 #_____________________
 # Set global variables
 #
