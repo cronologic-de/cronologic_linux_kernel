@@ -188,7 +188,7 @@ Or, you can clean a specific build as following:
 ### Preprocessor Directives
 | Identifier | Description | 
 | ---------- | ----------- |
-|`OLD_KERNEL_FOR_PIN` | This identifier is defined when the current kernel version is < 5.6. </br> Kernel Version 5.6 is the first version introduced `pin_user_pages`, which is used by the driver for DMA APIs.</br>Kernel version is not prefferred to be got using `include <linux/version.h>` and `LINUX_VERSION_CODE` identifier to cover that case when there are more than a kernel version installed on the environment.|
+|`OLD_KERNEL_FOR_PIN` | This identifier is defined when the current kernel version is < 5.6. </br> Kernel Version 5.6 is the first version introduced `pin_user_pages`, which is used by the driver for DMA APIs.|
 |`CRONO_KERNEL_MODE`| This identifier is used to differentiate between using the header files by the driver code and using them by userspace and applications code.</br>Hance, it's defined only in the driver module makefiles.|
 |`DEBUG`| Debug mode.|
 
@@ -444,6 +444,27 @@ As per Linux documentation, the number of pages returned by `sg_alloc_table_from
 Since the driver uses `sg_alloc_table_from_pages`, accordingly, the driver uses `PFN_PHYS(page_to_pfn())` to get the memory physical address.
 
 BTW, I tried `__sg_alloc_table_from_pages`  & `sg_dma_address`, but the addresses didn’t seem to be correct, but I didn’t use it again for the above mentioned reason.
+
+### Getting Kernel Version @ Compile Time
+Kernel version is not prefferred to be got using `include <linux/version.h>` and `LINUX_VERSION_CODE` identifier to cover that case when there are more than a kernel version installed on the environment.
+
+### The `unsigned` memory address
+For backward compability with kernel versions < 5.6, where pointers are not passed safely to `ioctl`, a new "integral unsigned" member variable (not a pointer, prefixed by `u`) is added to strcutures passed to `ioctl` _for every pointer in the stucture_, this unsigned variable is set to the value of the address of the relevant pointer (by `ioctl` caller) and is used (instead of the pointer member variable) in the `copy_from_user` and `copy_to_user`. 
+
+For instance, the variable `ucmds` in `CRONO_KERNEL_CMDS_INFO`:
+```C
+typedef struct {
+        .
+        CRONO_KERNEL_CMD *cmds;
+        uint64_t ucmds; // Is used exchangeably with `cmds`.
+                        // It is mainly provided for backward compatibility
+                        // with kernel versions earlier than 5.6
+        .
+} CRONO_KERNEL_CMDS_INFO;
+```
+While, in kernel versions >= 5.6, it's safe to use the pointer member variables of the structures directly.
+
+Moreover, if the structure member variable is a strcuture that has a pointer member, this "sub-pointer" needs to have a relevant `u` integral variable as well. That's why, we target to simplify all the structures passed to `ioctl` minimizing pointers as much as we can.
 
 ### Code-style
 The source code files are formatted using `clang-format`, with `LLVM` format and `IndentWidth:     8`.
