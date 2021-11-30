@@ -611,7 +611,7 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
 
         // Get the tranaction commands count and copy them
         pr_debug("Cleanup commands: count <%d>", crono_miscdev->cmds_count);
-        if (crono_miscdev->cmds_count > CLEANUP_CMD_COUNT) {
+        if (cmds_info.count > CLEANUP_CMD_COUNT) {
                 pr_err("Transaction objects count <%d> is greater than the "
                        "maximum <%d>",
                        crono_miscdev->cmds_count, CLEANUP_CMD_COUNT);
