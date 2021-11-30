@@ -466,6 +466,28 @@ While, in kernel versions >= 5.6, it's safe to use the pointer member variables 
 
 Moreover, if the structure member variable is a strcuture that has a pointer member, this "sub-pointer" needs to have a relevant `u` integral variable as well. That's why, we target to simplify all the structures passed to `ioctl` minimizing pointers as much as we can.
 
+### `struct file` in Linux
+The following chart illustrates the relation between the `file struct*` (`filp`) that's passed to `ioctl` 
+```C
+int  ioctl(struct file *filp, ..);
+```
+with:
+1. Its `inode`.
+2. The calling process `PID` (userspace application). 
+3. The locked buffer.
+
+![image](https://user-images.githubusercontent.com/75851720/144034645-f79968fd-c308-4b2f-903c-132c54a81878.png)
+
+Simple skeleton steps are like:
+1. Register (e.g. using `insmod`) the kernel module, that registers a miscdev of the device, e.g. `/dev/crono_06_0003000`, of `inodeA`.
+2. Run `xtdc4_ug_example` of Process ID `12345`.
+3. The process `12345` opens `/dev/crono_06_0003000` by calling `open()`, returning file descriptor `fdB`. 
+4. The process `12345` calls `ioctl()` using `fdB` to lock `BufferC` (allocated previously in userspace `12345`).
+5. In the kernel module, `ioctl()` receives a `struct file*` of value `filpD` (in kernel space) that is related to `fdB` (in userspace).  
+6. The kernel module then locks the buffer `BufferC` and assign it to process `12345` (`CRONO_BUFFER_INFO_WRAPPER`.`app_pid`).
+
+Although a cronologic device can have one and only one ring buffer, but the chart was provided as a general example.
+
 ### Code-style
 The source code files are formatted using `clang-format`, with `LLVM` format and `IndentWidth:     8`.
 
