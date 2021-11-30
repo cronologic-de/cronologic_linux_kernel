@@ -511,13 +511,14 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
                 buff_wrapper->userspace_pages[page_index] =
                     PFN_PHYS(page_to_pfn(
                         (struct page *)buff_wrapper->kernel_pages[page_index]));
-
+#ifdef DEBUG
                 if (page_index < 5)
                         // Log only first 5 pages
                         pr_debug("ioctl_pin: Kernel Page <%d> is of "
                                  "physical address <0x%llx>",
                                  page_index,
                                  buff_wrapper->userspace_pages[page_index]);
+#endif
         }
 
 #ifndef OLD_KERNEL_FOR_PIN
@@ -620,13 +621,13 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
                 crono_miscdev->cmds_count = cmds_info.count;
         }
         if (copy_from_user(
-                crono_miscdev->cmds, (void __user *)(cmds_info.utrans),
+                crono_miscdev->cmds, (void __user *)(cmds_info.ucmds),
                 sizeof(CRONO_KERNEL_CMD) * crono_miscdev->cmds_count)) {
                 pr_err("Error copying user data");
                 return -EFAULT;
         }
         // Copy back all data to userspace memory
-        if (copy_to_user((void __user *)(cmds_info.utrans), crono_miscdev->cmds,
+        if (copy_to_user((void __user *)(cmds_info.ucmds), crono_miscdev->cmds,
                          sizeof(CRONO_KERNEL_CMD) *
                              crono_miscdev->cmds_count)) {
                 pr_err("Error copying user data");
@@ -788,7 +789,7 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
                 return CRONO_SUCCESS;
         }
         pr_debug("Releasing buffer: wrapper id <%d>, address <0x%p>, size "
-                 "<%ld>, PID<%d>...",
+                 "<%ld>, PID <%d>...",
                  passed_buff_wrapper->buff_info.id,
                  passed_buff_wrapper->buff_info.addr,
                  passed_buff_wrapper->buff_info.size,
@@ -883,7 +884,7 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
 //
 static int crono_miscdev_open(struct inode *inode, struct file *filp) {
 
-        pr_debug("Opening device file: minor<%d>, PID<%d>", iminor(inode),
+        pr_debug("Opening device file: minor <%d>, PID <%d>", iminor(inode),
                  task_pid_nr(current));
 
         return CRONO_SUCCESS;
@@ -891,7 +892,7 @@ static int crono_miscdev_open(struct inode *inode, struct file *filp) {
 
 static int crono_miscdev_release(struct inode *inode, struct file *filp) {
 
-        pr_debug("Releasing device file: minor<%d>, PID<%d>", iminor(inode),
+        pr_debug("Releasing device file: minor <%d>, PID <%d>", iminor(inode),
                  task_pid_nr(current));
 
         _crono_release_buffer_wrappers_cur_proc();
@@ -1071,8 +1072,7 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         buff_wrapper->buff_info.id = buff_wrappers_new_id;
         list_add(&(buff_wrapper->list), &buff_wrappers_head);
         pr_debug("Added buffer wrapper to internal list. Address <0x%p>, size "
-                 "<%ld>, "
-                 "id <%d>",
+                 "<%ld>, id <%d>",
                  buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
                  buff_wrapper->buff_info.id);
         buff_wrappers_new_id++;
@@ -1098,7 +1098,7 @@ static void _crono_debug_list_wrappers(void) {
                 wrapper_list_is_empty = false; // Set the flag
                 temp_buff_wrapper =
                     list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
-                pr_debug("- Wrapper<%d>: address <0x%p>, size<%ld>, PID<%d>",
+                pr_debug("- Wrapper<%d>: address <0x%p>, size <%ld>, PID <%d>",
                          temp_buff_wrapper->buff_info.id,
                          temp_buff_wrapper->buff_info.addr,
                          temp_buff_wrapper->buff_info.size,
@@ -1139,7 +1139,7 @@ static int _crono_release_buffer_wrappers_cur_proc() {
         int app_pid = task_pid_nr(current);
 
         // Clean up all buffer information wrappers and list
-        pr_debug("Cleanup process PID<%d> buffers wrappers...", app_pid);
+        pr_debug("Cleanup process PID <%d> buffers wrappers...", app_pid);
         list_for_each_safe(pos, n, &buff_wrappers_head) {
                 temp_buff_wrapper =
                     list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
@@ -1155,15 +1155,15 @@ static int _crono_release_buffer_wrappers_cur_proc() {
                 pr_debug("No buffer wrappers found");
         }
         _crono_debug_list_wrappers();
-        pr_info("Done cleanup process PID<%d> buffer wrappers", app_pid);
+        pr_info("Done cleanup process PID <%d> buffer wrappers", app_pid);
 
         return CRONO_SUCCESS;
 }
 
 static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
 
-        int ret = CRONO_SUCCESS, bar0, icmd;
-        unsigned long BAR0_base, BAR0_len;
+        int ret = CRONO_SUCCESS, bar, icmd;
+        unsigned long bar_base, bar_len;
         uint8_t __iomem *hwmem = NULL; // Memory pointer for the I/O operations
         struct crono_miscdev *crono_dev = NULL;
 
@@ -1192,25 +1192,22 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
 
         // Get BAR memory information, to write cleanup commands on its
         // regiters
-        BAR0_base = pci_resource_start(crono_dev->dev,
-                                       0); // '0' for the first BAR
-        if (0 == BAR0_base) {
-                pr_err("Error getting start address of BAR0 of device "
-                       "<%s>",
-                       crono_dev->miscdev.name);
+        bar_base = pci_resource_start(crono_dev->dev, DEVICE_BAR_INDEX);
+        if (0 == bar_base) {
+                pr_err("Error getting start address of BAR <%d> of device <%s>",
+                       DEVICE_BAR_INDEX, crono_dev->miscdev.name);
                 return -EFAULT;
         }
-        BAR0_len = pci_resource_len(crono_dev->dev,
-                                    0); // '0' for the first BAR
-        pr_debug("BAR0 of device <%s>: Base <0x%lx>, Length <%ld>",
-                 crono_dev->miscdev.name, BAR0_base, BAR0_len);
+        bar_len = pci_resource_len(crono_dev->dev, DEVICE_BAR_INDEX);
+        pr_debug("BAR <%d> of device <%s>: Base <0x%lx>, Length <%ld>",
+                 DEVICE_BAR_INDEX, crono_dev->miscdev.name, bar_base, bar_len);
 
         // Request the BAR (I/O resource)
-        bar0 = pci_select_bars(crono_dev->dev, IORESOURCE_MEM);
+        bar = pci_select_bars(crono_dev->dev, IORESOURCE_MEM);
 
         // pci_enable_device_mem(pdev);
         // Request the memory region
-        ret = pci_request_region(crono_dev->dev, bar0, "crono_pci_drvmod");
+        ret = pci_request_region(crono_dev->dev, bar, "crono_pci_drvmod");
         if (ret != 0) {
                 pr_err("Error requesting device <%s> region",
                        crono_dev->miscdev.name);
@@ -1218,18 +1215,21 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
         }
 
         // Map provided resource to the local memory pointer
-        hwmem = ioremap(BAR0_base, BAR0_len);
+        hwmem = ioremap(bar_base, bar_len);
         if (NULL == hwmem) {
-                pr_err("Error mapping BAR0 memory");
-                pci_release_region(crono_dev->dev, bar0);
+                pr_err("Error mapping BAR <%d> memory", DEVICE_BAR_INDEX);
+                pci_release_region(crono_dev->dev, bar);
         }
-        pr_debug("BAR0 memory is mapped to <0x%p>", hwmem);
+        pr_debug("BAR <%d> memory is mapped to <0x%p>", DEVICE_BAR_INDEX,
+                 hwmem);
 
         // Write the commands to the registers
         for (icmd = 0; icmd < crono_dev->cmds_count; icmd++) {
                 iowrite32(crono_dev->cmds[icmd].data,
                           hwmem + crono_dev->cmds[icmd].addr);
         }
+
+#ifdef DEBUG
         // Log outside the registers writing loop
         for (icmd = 0; icmd < crono_dev->cmds_count; icmd++) {
                 pr_debug("Applied cleanup command: data<0x%x>, "
@@ -1237,12 +1237,12 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
                          crono_dev->cmds[icmd].data,
                          crono_dev->cmds[icmd].addr);
         }
-
+#endif
         // Cleanup function data and actions
-        pci_release_region(crono_dev->dev, bar0);
+        pci_release_region(crono_dev->dev, bar);
         pr_debug("Done applying cleanup commands of device <%s>",
                  crono_dev->miscdev.name);
 
-        // Close
+        // Return
         return ret;
 }
