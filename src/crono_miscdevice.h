@@ -22,12 +22,21 @@ static int _crono_miscdev_init(struct pci_dev *dev,
 /**
  * The `open()` function in miscellaneous device driver `file_operations`
  * structure.
+ * `inode` should be of a miscdev already registered by the driver.
+ *
+ * @return `CRONO_SUCCESS` in case of no error, `-EBUSY` (-16) in case miscdev
+ * is already opened, or `-ENODEV`(-19) in case miscdev is not found in internal
+ * pool.
  */
 static int crono_miscdev_open(struct inode *inode, struct file *file);
 
 /**
  * The `release()` function in miscellaneous device driver `file_operations`
  * structure.
+ *
+ * @return `CRONO_SUCCESS` in case of no error, `-ENODATA`(-61) in case miscdev
+ * is not opened, or `-ENODEV`(-19) in case miscdev is not found in internal
+ * pool.
  */
 static int crono_miscdev_release(struct inode *inode, struct file *file);
 

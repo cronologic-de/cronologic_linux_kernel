@@ -20,8 +20,8 @@ MODULE_VERSION("1.0");
  * Static array holds all the registered miscdevs.
  * Dynamically allocating the miscdev objects has problems with `misc_register`
  * in static functions in the module.
- * It's not likely that a crono miscdev is
- * unregistered in the middle of the array.
+ * It's not likely that a crono miscdev is unregistered in the middle of the
+ * array.
  */
 static struct crono_miscdev crono_miscdev_pool[CRONO_MAX_MSCDEV_COUNT];
 static uint32_t crono_miscdev_pool_new_index = 0;
@@ -884,21 +884,78 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
 //
 static int crono_miscdev_open(struct inode *inode, struct file *filp) {
 
-        pr_debug("Opening device file: minor <%d>, PID <%d>", iminor(inode),
+        int icrono_miscdev, passed_iminor;
+        pr_debug("Opening device file: minor <%d>, PID <%d>...", iminor(inode),
                  task_pid_nr(current));
 
-        return CRONO_SUCCESS;
+        // Check the file is not opened before
+        for (icrono_miscdev = 0, passed_iminor = iminor(inode);
+             icrono_miscdev < crono_miscdev_pool_new_index; icrono_miscdev++) {
+                // Check the array element is the underlying miscdev
+                if (passed_iminor !=
+                    crono_miscdev_pool[icrono_miscdev].miscdev.minor)
+                        continue;
+
+                // miscdev is found
+                // Check if it's the first time the miscdev is opened
+                if (0 == crono_miscdev_pool[icrono_miscdev].open_count) {
+                        // First time to open the miscdev
+                        crono_miscdev_pool[icrono_miscdev].open_count++;
+                        return CRONO_SUCCESS;
+                }
+
+                // miscdev is already opened, it's not an error
+                pr_debug("Opening an already opened miscdev, open count <%d>",
+                         crono_miscdev_pool[icrono_miscdev].open_count);
+
+                // Opening is just a counter, don't stop the open
+                // process and let caller decide on the action
+                crono_miscdev_pool[icrono_miscdev].open_count++;
+                return -EBUSY; // Device or resource is busy
+        }
+        // Internal error
+        pr_err("Trying to open a device of minor <%d> while not found in "
+               "crono_miscdev_pool",
+               passed_iminor);
+
+        return -ENODEV;
 }
 
 static int crono_miscdev_release(struct inode *inode, struct file *filp) {
 
+        int icrono_miscdev, passed_iminor;
         pr_debug("Releasing device file: minor <%d>, PID <%d>", iminor(inode),
                  task_pid_nr(current));
 
         _crono_release_buffer_wrappers_cur_proc();
         _crono_apply_cleanup_commands(inode);
 
-        return CRONO_SUCCESS;
+        // Decrement the file open counter
+        passed_iminor = iminor(inode);
+        for (icrono_miscdev = 0; icrono_miscdev < crono_miscdev_pool_new_index;
+             icrono_miscdev++) {
+                // Check the array element is the underlying miscdev
+                if (passed_iminor !=
+                    crono_miscdev_pool[icrono_miscdev].miscdev.minor)
+                        continue;
+
+                // miscdev is found
+                // Check it's already opened before (at least once)
+                if (0 == crono_miscdev_pool[icrono_miscdev].open_count) {
+                        // Not opened before. Invalid open count value = 0
+                        pr_err("Calling release for an un-open device, or "
+                               "inconsistent calls of close() and open() ");
+                        return -ENODATA; // No data found for open
+                }
+                // miscdev is opened (at least once)
+                crono_miscdev_pool[icrono_miscdev].open_count--;
+                return CRONO_SUCCESS;
+        }
+        // Internal error
+        pr_err("Trying to release a device of minor <%d> while not found in "
+               "crono_miscdev_pool",
+               passed_iminor);
+        return -ENODEV;
 }
 
 // _____________________________________________________________________________
@@ -1126,7 +1183,7 @@ static int _crono_release_buffer_wrappers() {
                 // `_crono_release_buff_wrapper`
         }
         _crono_debug_list_wrappers();
-        pr_info("Done cleanup wrappers list...");
+        pr_info("Done cleanup wrappers list");
 
         return CRONO_SUCCESS;
 }

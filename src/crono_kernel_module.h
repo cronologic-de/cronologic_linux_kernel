@@ -82,6 +82,11 @@ struct crono_miscdev {
          */
         CRONO_KERNEL_CMD cmds[CLEANUP_CMD_COUNT];
         uint32_t cmds_count; // Count of valid entries in `cmds`.
+
+        /**
+         * A counter of the number of times `open()` is called for this device.
+         */
+        uint32_t open_count;
 };
 
 /**
