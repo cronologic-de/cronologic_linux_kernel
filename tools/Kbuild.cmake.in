@@ -1,0 +1,8 @@
+# This input file has the settings used to build `cronologic_pci_drvmod` drive 
+# kernel module.
+# All variables should be defined in the `CMakeLists.txt` file that runs `make`
+# and uses this file.
+TARGET 	        := ${TARGET_NAME}
+obj-m 			+= $(TARGET).o
+$(TARGET)-objs 	+= ${CRONO_TARGET_OBJS} 
+ccflags-y 		+= ${CRONO_CCFLAGS}
