@@ -48,7 +48,7 @@ set(CRONO_TARGET_OBJS "crono_kernel_module.o" CACHE STRING "Object Files Names")
 
 # Set Kbuild parameters - CRONO_CCFLAGS
 set(CRONO_CCFLAGS   "-DCRONO_KERNEL_MODE -m64 " CACHE STRING "CC Flags")
-string(PREPEND CRONO_CCFLAGS " -I${CMAKE_CURRENT_BINARY_DIR}/include " )
+string(PREPEND CRONO_CCFLAGS " -I${PROJECT_SOURCE_DIR}/../include " )
 
 # Set Kbuild parameters - Configuration-specific flags
 if(NOT CMAKE_BUILD_TYPE)
@@ -78,9 +78,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
         ${CMAKE_BINARY_DIR}/build/linux/x86_64/${CRONO_BUILD_TYPE}/bin)
 
 # Create target, and copy it to `CMAKE_RUNTIME_OUTPUT_DIRECTORY` 
-add_custom_target(crono_pci_drvmod ALL
-    COMMAND "echo" Crono: building driver module ${TARGET_NAME} 
-    COMMAND make -j2 -C ${kerneldir} M=${CMAKE_BINARY_DIR}
+add_custom_target(${TARGET_NAME} ALL
+    COMMAND "echo" Crono: building driver module ${TARGET_NAME}  
+    COMMAND make -j2 -C ${kerneldir} M=${CMAKE_BINARY_DIR} 
     COMMAND mkdir -p ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     COMMAND sh -c "cp ${CMAKE_BINARY_DIR}/*.ko ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
     COMMAND echo "Crono: output directory is <${CMAKE_RUNTIME_OUTPUT_DIRECTORY}>"
@@ -89,3 +89,21 @@ add_custom_target(crono_pci_drvmod ALL
     SOURCES ${CRONO_SRCS}
     VERBATIM
 )
+
+# Publish packages on conan local cache _______________________________ 
+IF (NOT CRONO_PUBLISH_LOCAL_PKG STREQUAL "N")
+        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD 
+                COMMAND "echo" Crono: building and publishing Main Package 
+                                to conan cache... 
+                COMMAND "conan" create ${CMAKE_SOURCE_DIR} 
+                                -s build_type=${CMAKE_BUILD_TYPE}
+                                -s arch=x86_64
+                COMMAND "echo" Crono: exporting -bin Package to conan
+                                local cache... 
+                COMMAND "conan" export-pkg ${CMAKE_SOURCE_DIR}/bin_pkg --force
+                                -s build_type=${CMAKE_BUILD_TYPE}
+                                -s arch=x86_64
+                COMMAND "echo" Crono: exporting -headers Package to conan
+                                local cache... 
+                COMMAND "conan" export-pkg ${CMAKE_SOURCE_DIR}/headers_pkg --force)
+ENDIF()
