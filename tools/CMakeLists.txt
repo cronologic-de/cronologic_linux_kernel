@@ -93,9 +93,9 @@ add_custom_target(${TARGET_NAME} ALL
 # Publish packages on conan local cache _______________________________ 
 IF (NOT CRONO_PUBLISH_LOCAL_PKG STREQUAL "N")
         add_custom_command(TARGET ${TARGET_NAME} POST_BUILD 
-                COMMAND "echo" Crono: building and publishing Main Package 
-                                to conan cache... 
-                COMMAND "conan" create ${CMAKE_SOURCE_DIR} 
+                COMMAND "echo" Crono: exporting Main Package 
+                                to conan local cache... 
+                COMMAND "conan" export-pkg ${CMAKE_SOURCE_DIR} 
                                 -s build_type=${CMAKE_BUILD_TYPE}
                                 -s arch=x86_64
                 COMMAND "echo" Crono: exporting -bin Package to conan
