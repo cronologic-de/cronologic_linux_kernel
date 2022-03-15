@@ -24,7 +24,7 @@ class CronoLinuxKerneModuleConan(CronoConanBase):
           + version
     description = "Cronologic PCI Kernel Module"
     topics = ["cronologic", "pci", "kernel", "module", "linux"]
-    settings = ["os", "compiler", "build_type", "arch"]
+    settings = ["os", "compiler", "build_type", "arch", "distro"]
 
     # `CronoConanBase` variables initialization and export
     supported_os = ["Linux"]
@@ -36,6 +36,6 @@ class CronoLinuxKerneModuleConan(CronoConanBase):
     # Conan Methods
     #
     def package(self):
-        super().package(pack_src=True, exec_name="crono_pci_drvmod.ko")
+        super().package(exec_name="crono_pci_drvmod.ko")
         
     # __________________________________________________________________________

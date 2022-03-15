@@ -29,7 +29,7 @@ class CronoLinuxKerneModuleHeadersConan(CronoConanBase):
           + version
     description = "Cronologic linux kernel module header file(s)"
     topics = ["cronologic", "pci", "kernel", "module", "linux"]
-    settings = ["os", "compiler", "build_type", "arch"]
+    settings = ["os", "compiler", "build_type", "arch", "distro"]
 
     # `CronoConanBase` variables initialization and export
     supported_os = ["Linux"]

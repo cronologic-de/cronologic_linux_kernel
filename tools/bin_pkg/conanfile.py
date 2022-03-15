@@ -22,7 +22,7 @@ class CronoLinuxKerneModuleBinConan(CronoConanBase):
     # __________________________________________________________________________
     # Member variables
     #
-    name = "cronologic_linux_kernel-bin-ubuntu-5.13"
+    name = "cronologic_linux_kernel-bin"
 
     license = "GPL-3.0 License"
     author = "Bassem Ramzy <SanPatBRS@gmail.com>"
@@ -30,7 +30,7 @@ class CronoLinuxKerneModuleBinConan(CronoConanBase):
         + version
     description = "Cronologic kernel module binary file(s)"
     topics = ["cronologic", "pci", "kernel", "module", "linux"]
-    settings = ["os", "compiler", "build_type", "arch"]
+    settings = ["os", "compiler", "build_type", "arch", "distro"]
 
     # `CronoConanBase` variables initialization
     supported_os = ["Linux"]
