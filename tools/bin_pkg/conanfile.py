@@ -4,14 +4,12 @@
 # It packages both the source code and the generated binary kernel module. 
 # It uses the projects' `CMake` whenever a build is needed.
 #
+from conans import ConanFile
 
-import sys
-import distutils.dir_util
+class CronoLinuxKerneModuleBinConan(ConanFile):
+    python_requires = "crono_utils/0.0.1"
+    python_requires_extend = "crono_utils.CronoConanBase"
 
-sys.path.append("../conan_utils/")
-from CronoConanBase import CronoConanBase
-
-class CronoLinuxKerneModuleBinConan(CronoConanBase):
     # __________________________________________________________________________
     # Values to be reviewed with every new version
     #
@@ -35,7 +33,6 @@ class CronoLinuxKerneModuleBinConan(CronoConanBase):
     # `CronoConanBase` variables initialization
     supported_os = ["Linux"]
     proj_src_indir = "../.."
-    exports = "../conan_utils/*.py"
     is_bin = True
 
     # ==========================================================================

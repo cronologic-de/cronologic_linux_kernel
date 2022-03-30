@@ -3,14 +3,12 @@
 # for Linux, from the package `cronologic_linux_kernel`.
 # It packages both the source code and the generated binary kernel module. 
 #
-import sys
-import distutils.dir_util
+from conans import ConanFile
 
-sys.path.append("../conan_utils/")
-from CronoConanBase import CronoConanBase
+class CronoLinuxKerneModuleHeadersConan(ConanFile):
+    python_requires = "crono_utils/0.0.1"
+    python_requires_extend = "crono_utils.CronoConanBase"
 
-
-class CronoLinuxKerneModuleHeadersConan(CronoConanBase):
     # __________________________________________________________________________
     # Values to be reviewed with every new version
     #
@@ -34,5 +32,4 @@ class CronoLinuxKerneModuleHeadersConan(CronoConanBase):
     # `CronoConanBase` variables initialization and export
     supported_os = ["Linux"]
     proj_src_indir = "../.."
-    exports = "../conan_utils/*.py"
     is_headers = True
