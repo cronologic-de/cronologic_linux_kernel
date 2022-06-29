@@ -406,7 +406,7 @@ For example: the misc driver name is `crono_06_0002000` for xTDC4 (Id = 0x06), d
 
 ### DMA APIs Handling
 To satisfy DMA APIs "guards", the driver code takes the following into consideration:
-1. Calls `unpin_user_pages` to pin the user pages, and calls `unpin_user_pages` when done working with it.
+1. Calls `pin_user_pages` to pin the user pages, and calls `unpin_user_pages` when done working with it.
 2. Allocates Scatter/Gather table using `sg_alloc_table_from_pages`, while its output is not really needed.
 3. Uses `dma_map_sg` to map the Scatter/Gather table.
 
@@ -420,7 +420,7 @@ Kernel version is determined in the `Makefile`, based on which, the identifier `
 ### `Device` vs `Device Type`
 A PC might have two devices of different types (models): e.g. `xHPTDC8` and `xTDC4`. Each type is called a _device type_. 
 
-This is generalizing the idea for a case that might be rare, where a PC can have two boards of xHPTDC8 installed, that’s why there is an array of devices in every type [crono_device_types_info]https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/src/crono_kernel_module.c#L24. 
+This is generalizing the idea for a case that might be rare, where a PC can have two boards of xHPTDC8 installed, that’s why there is an array of devices in every type [crono_device_types_info](https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/src/crono_kernel_module.c#L24). 
 
 ### Using `sg_alloc_table_from_pages`
 
