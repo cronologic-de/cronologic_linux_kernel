@@ -788,6 +788,7 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
                 pr_debug("Nothing to clean for the buffer");
                 return CRONO_SUCCESS;
         }
+        _crono_debug_list_wrappers();
         pr_debug("Releasing buffer: wrapper id <%d>, address <0x%p>, size "
                  "<%ld>, PID <%d>...",
                  passed_buff_wrapper->buff_info.id,
@@ -859,23 +860,22 @@ _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
                 if (temp_buff_wrapper->buff_info.id ==
                     passed_buff_wrapper->buff_info.id) {
                         found_buff_wrapper = temp_buff_wrapper;
+                        list_del(&(temp_buff_wrapper->list));
+                        pr_debug("Done deleting wrapper <%d> from list",
+                                passed_buff_wrapper->buff_info.id);
+                        // Don't free temp_buff_wrapper here, caller should free
+                        // it. kvfree(temp_buff_wrapper) crashes here.
                 }
         }
-        if (NULL != found_buff_wrapper) {
-                list_del(&(temp_buff_wrapper->list));
-                pr_debug("Done deleting wrapper <%d> from list",
-                         passed_buff_wrapper->buff_info.id);
-                // Don't free temp_buff_wrapper here, caller should free
-                // it. kvfree(temp_buff_wrapper) crashes here.
-        } else {
+        if (NULL == found_buff_wrapper) {
                 pr_err("Wrapper<%d>: Not found in wrappers list",
                        passed_buff_wrapper->buff_info.id);
         }
-        _crono_debug_list_wrappers();
 
         // Success
         pr_info("Done releasing buffer: wrapper id <%d>",
                 passed_buff_wrapper->buff_info.id);
+        _crono_debug_list_wrappers();
         return CRONO_SUCCESS;
 }
 
@@ -911,7 +911,8 @@ static int crono_miscdev_open(struct inode *inode, struct file *filp) {
                 // Opening is just a counter, don't stop the open
                 // process and let caller decide on the action
                 crono_miscdev_pool[icrono_miscdev].open_count++;
-                return -EBUSY; // Device or resource is busy
+                return CRONO_SUCCESS; // Device or resource already opened
+                                      // No problem with driver
         }
         // Internal error
         pr_err("Trying to open a device of minor <%d> while not found in "
@@ -1182,8 +1183,8 @@ static int _crono_release_buffer_wrappers() {
                 // Don't list_del(pos); it's deleted in
                 // `_crono_release_buff_wrapper`
         }
-        _crono_debug_list_wrappers();
         pr_info("Done cleanup wrappers list");
+        _crono_debug_list_wrappers();
 
         return CRONO_SUCCESS;
 }
@@ -1197,6 +1198,7 @@ static int _crono_release_buffer_wrappers_cur_proc() {
 
         // Clean up all buffer information wrappers and list
         pr_debug("Cleanup process PID <%d> buffers wrappers...", app_pid);
+        _crono_debug_list_wrappers();
         list_for_each_safe(pos, n, &buff_wrappers_head) {
                 temp_buff_wrapper =
                     list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
@@ -1211,7 +1213,6 @@ static int _crono_release_buffer_wrappers_cur_proc() {
         if (no_wrappers_found) {
                 pr_debug("No buffer wrappers found");
         }
-        _crono_debug_list_wrappers();
         pr_info("Done cleanup process PID <%d> buffer wrappers", app_pid);
 
         return CRONO_SUCCESS;
