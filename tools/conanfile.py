@@ -6,13 +6,13 @@
 from conans import ConanFile
 
 class CronoLinuxKerneModuleConan(ConanFile):
-    python_requires = "crono_utils/0.0.1"
-    python_requires_extend = "crono_utils.CronoConanBase"
+    python_requires = "crono_conan_base/[~1.0.0]"
+    python_requires_extend = "crono_conan_base.CronoConanBase"
 
     # __________________________________________________________________________
     # Values to be reviewed with every new version
     #
-    version = "0.0.1"
+    version = "0.0.2"
 
     # __________________________________________________________________________
     # Member variables

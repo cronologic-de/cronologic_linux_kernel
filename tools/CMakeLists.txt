@@ -1,15 +1,22 @@
 cmake_minimum_required(VERSION 2.9)
-project("crono_pci_drvmod")
 set(TARGET_NAME "crono_pci_drvmod" CACHE STRING "Project Target Name")
+project(${TARGET_NAME})
 
-# Set `CRONO_BUILD_TYPE`
-if(NOT CMAKE_BUILD_TYPE)
-    message(STATUS  "Crono: assuming build type is `Release` "
-                    "as none was specified.")
-    set(CMAKE_BUILD_TYPE Release)
-endif()
-# All paths are in lower case
-string(TOLOWER ${CMAKE_BUILD_TYPE} CRONO_BUILD_TYPE)
+# Install project tools, then include `crono_common.cmake` and initialize it
+IF(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/crono_common.cmake") 
+        message(STATUS "Crono: Installing Cronologic Project Tools ...")
+        execute_process(COMMAND "conan" install crono_project_tools/[~1.1.0]@ 
+                -o support_x64_32=False         # Support x64_32
+                -if ${CMAKE_CURRENT_SOURCE_DIR} # `tools` folder
+)
+ENDIF()
+
+# `crono_common.cmake` initialization and configuration
+set(CRONO_TARGET_NAME ${TARGET_NAME})
+set(CRONO_PROJECT_TYPE EXECUTABLE)
+include(${CMAKE_CURRENT_SOURCE_DIR}/crono_common.cmake)
+crono_cmake_common_init()
+string(TOLOWER ${CRONO_BUILD_TYPE} CRONO_CONFIG_DIR)
 
 # Set kernel build path, and validate it
 set(kerneldir "" CACHE STRING "Path to the kernel build directory")
@@ -51,10 +58,7 @@ set(CRONO_CCFLAGS   "-DCRONO_KERNEL_MODE -m64 " CACHE STRING "CC Flags")
 string(PREPEND CRONO_CCFLAGS " -I${PROJECT_SOURCE_DIR}/../include " )
 
 # Set Kbuild parameters - Configuration-specific flags
-if(NOT CMAKE_BUILD_TYPE)
-    message(STATUS  "Crono: assuming build type is `Release` "
-                    "as none was specified.")
-elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
+if ("${CRONO_CONFIG_DIR}" STREQUAL "debug")
     string(PREPEND CRONO_CCFLAGS " -DCRONO_DEBUG_ENABLED -DDEBUG=1 ")
 endif()
 
@@ -75,11 +79,11 @@ CONFIGURE_FILE(${CMAKE_CURRENT_BINARY_DIR}/Kbuild.cmake.in ${CMAKE_BINARY_DIR}/K
 
 # Set the output directory ____________________________________________
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY 
-        ${CMAKE_BINARY_DIR}/build/linux/x86_64/${CRONO_BUILD_TYPE}/bin)
+        ${CMAKE_BINARY_DIR}/build/linux/x86_64/${CRONO_CONFIG_DIR}/bin)
 
 # Create target, and copy it to `CMAKE_RUNTIME_OUTPUT_DIRECTORY` 
-add_custom_target(${TARGET_NAME} ALL
-    COMMAND "echo" Crono: building driver module ${TARGET_NAME}  
+add_custom_target(${CRONO_TARGET_NAME} ALL
+    COMMAND "echo" Crono: building driver module ${CRONO_TARGET_NAME}  
     COMMAND make -j2 -C ${kerneldir} M=${CMAKE_BINARY_DIR} 
     COMMAND mkdir -p ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     COMMAND sh -c "cp ${CMAKE_BINARY_DIR}/*.ko ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
@@ -92,18 +96,7 @@ add_custom_target(${TARGET_NAME} ALL
 
 # Publish packages on conan local cache _______________________________ 
 IF (NOT CRONO_PUBLISH_LOCAL_PKG STREQUAL "N")
-        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD 
-                COMMAND  "echo" Crono: exporting Main Package to conan local cache... 
-                COMMAND "conan" export-pkg ${CMAKE_SOURCE_DIR} -sf .. --force
-                                -s build_type=${CMAKE_BUILD_TYPE}
-                                -s arch=x86_64
-
-                COMMAND  "echo" Crono: exporting -bin Package to conan local cache... 
-                COMMAND "conan" export-pkg ${CMAKE_SOURCE_DIR}/bin_pkg -sf ../.. --force
-                                -s build_type=${CMAKE_BUILD_TYPE}
-                                -s arch=x86_64
-
-                COMMAND  "echo" Crono: exporting -headers Package to conan local cache... 
-                COMMAND "conan" export-pkg ${CMAKE_SOURCE_DIR}/headers_pkg -sf ../.. --force
-    )
+    #crono_target_post_build_export_pkg_main()
+    crono_target_post_build_export_pkg("${CMAKE_CURRENT_SOURCE_DIR}/bin_pkg")
+    crono_target_post_build_export_pkg("${CMAKE_CURRENT_SOURCE_DIR}/headers_pkg")
 ENDIF()
