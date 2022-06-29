@@ -96,7 +96,7 @@ add_custom_target(${CRONO_TARGET_NAME} ALL
 
 # Publish packages on conan local cache _______________________________ 
 IF (NOT CRONO_PUBLISH_LOCAL_PKG STREQUAL "N")
-    #crono_target_post_build_export_pkg_main()
+    crono_target_post_build_export_pkg_main()
     crono_target_post_build_export_pkg("${CMAKE_CURRENT_SOURCE_DIR}/bin_pkg")
     crono_target_post_build_export_pkg("${CMAKE_CURRENT_SOURCE_DIR}/headers_pkg")
 ENDIF()
