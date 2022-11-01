@@ -193,7 +193,7 @@ Or, you can clean a specific build as following:
 |`DEBUG`| Debug mode.|
 
 ### Why There Is a Makefile Per Build
-For creating a kernel module, it's much simpler (_and feasibile_) to have a Makefile per build, rather than having all builds in one Makefile.
+For creating a kernel module, it's much simpler (_and feasible_) to have a Makefile per build, rather than having all builds in one Makefile.
 
 ### Create Symbolic Links to Source Files 
 Makefile for kernel module is simpler when having all the source code files in the same directory of the Makefile. 
