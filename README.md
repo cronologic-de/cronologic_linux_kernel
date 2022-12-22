@@ -130,7 +130,7 @@ sudo yum install gcc make
 - If the kernel development is not installed on your system for the current kernel verision, you can install it using `elrepo` as following
 ```CMD
 sudo rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
-sudo yum install http://www.elrepo.org/elrepo-release-8.el8.elrepo.noarch.rpm
+sudo yum install https://www.elrepo.org/elrepo-release-9.el9.elrepo.noarch.rpm
 ```
 - If you are using _Long Term Support_ version, then, you need to run the following commands:
 ```CMD
@@ -142,6 +142,12 @@ sudo dnf --enablerepo=elrepo-kernel install kernel-lt-devel
 sudo dnf --enablerepo=elrepo-kernel install kernel-ml
 sudo dnf --enablerepo=elrepo-kernel install kernel-ml-devel
 ```
+- If you want to use `dkms`, make sure it's installed, or install it using:
+```CMD
+sudo yum install dkms
+```
+
+- For older CentOS versions, please refer to [ElRepo Project](http://elrepo.org/tiki/HomePage).
 
 ### Fedora
 - Make sure you have **sudo** access.
@@ -152,6 +158,10 @@ sudo yum install gcc make
 - If the kernel development is not installed on your system for the current kernel verision, you can install it as following
 ```CMD
 sudo yum install kernel-devel-$(uname -r)
+```
+- If you want to use `dkms`, make sure it's installed, or install it using:
+```CMD
+sudo yum install dkms
 ```
 
 ### Debian 
