@@ -23,7 +23,9 @@ Access is done by userspace and applications via the following ways:
 1. `sysfs`. Accessing the driver from file system, e.g. accessing BAR0 or the Device Configuration.
 2. `ioctl` calls for the `miscdev` file.
 
-The driver is designed to be used for all conologic devices that are installed on PCIe or Thunderbolt sockets.
+The driver is designed to be used for all cronologic devices that are installed on PCIe or Thunderbolt sockets.
+
+`dkms.conf` is provided to install the driver module without the need to, _manually_, compile and build it, and supporting the automatic build and installation of the driver module with every new kernel version installed on the system. 
 
 ## Architecture
 <p align="center">
@@ -52,27 +54,33 @@ The driver is tested on the following **64-bit** distributions:
   - 5.4.0-42-generic
   - 5.10.0-051000-generic
   - 5.11.0-37-generic
-- **CentOS** (CentOS-Stream-8-x86_64-20210927)(**):
+  - Later.
+- **CentOS** (CentOS-Stream-8, 9)(**):
   - 5.4.150-1.e18.elrepo.x86_64
   - 5.14.9-1.el8.elrepo.x86_64
+  - Later.
 - **Fedora** (Fedora-Workstation-Live-x86_64-34-1.2)(**):
   - 5.14.9-200.fc34.x86_64
 - **Debian** (Debian GNU/Linux 11 (bullseye))(**)
   - 5.10.0-8-amd64
-- **openSUSE** Leap 15.3(**)
+  - Later.
+- **openSUSE** Leap 15.3
   - 5.3.15-59.27-default
+  - Later.
 
 (**) Driver code is built successfully, however, the driver was not tested on the devices.
 
 ---
 
 # Build the Project
+
+## Build Manually
 To build the project, run `make` command:
 ```CMD
-$ make
+make
 ```
 
-## Target Output
+### Target Output
 The build target output is:
 | Output | Builds | Description | 
 | -------- | ------ | ----------- |
@@ -81,7 +89,7 @@ The build target output is:
 
 * `build` folder is created on the same level of project folder `cronologic_linux_kernel`, to be shared with all other projects outputs in the same folder.
 
-## Makefiles and Build Versions
+### Makefiles and Build Versions
 The following makefiles are used to build the project versions:
 | Makefile | Builds | Description | 
 | -------- | ------ | ----------- |
@@ -89,6 +97,13 @@ The following makefiles are used to build the project versions:
 | ./src/Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project. |
 | ./src/debug_64/Makefile | Debug | Builds the `debug` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``../../../build/linux/bin/debug_64/`` directory. </br> Additional debugging information will be printed to the kernel messages displayed using `dmesg`.|
 | ./src/release_64/Makefile | Release | Builds the `release` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``../../../build/linux/bin/release_64/`` directory. |
+
+## Build Using `DKMS`
+Run `dkms` `build` command from the project folder, e.g.
+```CMD
+sudo dkms build .
+```
+`dkms.conf` uses the project `Makefile` found under `/src/release_64` to build the porject.
 
 ## Build Prerequisites
 ### Ubuntu 
@@ -101,6 +116,10 @@ sudo apt-get install make gcc
 ```CMD
 sudo apt-get install linux-headers-$(uname -r) linux-modules-$(uname -r)
 ```
+- If you want to use `dkms`, make sure it's installed, or install it using:
+```CMD
+sudo apt-get install dkms
+```
 
 ### CentOS 
 - Make sure you have **sudo** access.
@@ -111,7 +130,7 @@ sudo yum install gcc make
 - If the kernel development is not installed on your system for the current kernel verision, you can install it using `elrepo` as following
 ```CMD
 sudo rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
-sudo yum install http://www.elrepo.org/elrepo-release-8.el8.elrepo.noarch.rpm
+sudo yum install https://www.elrepo.org/elrepo-release-9.el9.elrepo.noarch.rpm
 ```
 - If you are using _Long Term Support_ version, then, you need to run the following commands:
 ```CMD
@@ -123,6 +142,12 @@ sudo dnf --enablerepo=elrepo-kernel install kernel-lt-devel
 sudo dnf --enablerepo=elrepo-kernel install kernel-ml
 sudo dnf --enablerepo=elrepo-kernel install kernel-ml-devel
 ```
+- If you want to use `dkms`, make sure it's installed, or install it using:
+```CMD
+sudo yum install dkms
+```
+
+- For older CentOS versions, please refer to [ElRepo Project](http://elrepo.org/tiki/HomePage).
 
 ### Fedora
 - Make sure you have **sudo** access.
@@ -134,6 +159,10 @@ sudo yum install gcc make
 ```CMD
 sudo yum install kernel-devel-$(uname -r)
 ```
+- If you want to use `dkms`, make sure it's installed, or install it using:
+```CMD
+sudo yum install dkms
+```
 
 ### Debian 
 - Make sure you have **sudo** access.
@@ -144,6 +173,10 @@ sudo apt-get install make gcc
 - Make sure `modules` and `headers` of your current kernel version are installed, or install them using:
 ```CMD
 sudo apt-get install linux-headers-$(uname -r) 
+```
+- If you want to use `dkms`, make sure it's installed, or install it using:
+```CMD
+sudo apt-get install dkms
 ```
 
 ### openSUSE
@@ -157,6 +190,7 @@ sudo zypper install make gcc
 sudo zypper in kernel-devel kernel-default-devel
 sudo zypper up
 ```
+- If you want to use `dkms`, make sure it's installed, or install it from [openSUSE Packages](https://software.opensuse.org/package/dkms).
 
 ### General Notes
 * You can check if `make` and `gcc` are installed by running the following commands:
@@ -204,17 +238,27 @@ That's why, the Makefiles create symbolic links to the source files before start
 
 # Installation
 
-## Overview
+Installation can be done either by using `DKMS` or manually.
+
+## Prerequisites
+Please refer to: [Build Prerequisites](https://github.com/cronologic-de/cronologic_linux_kernel#build-prerequisites)
+
+## `DKMS` Installation
+Run `dkms` `install` command from the project folder, e.g.
+```CMD
+sudo dkms install .
+```
+`dkms.conf` uses `install.sh` to install the porject on the system and add module to the root.
+
+## Manual Installation
+
 This installation of the driver module is very simple, and is mainly done via `insmod`, however, an installation script is provided to support wider options, like debug, add to boot, uninstall, etc...
 
 The installation firstly builds the driver module code, that's why the minimal build packages are needed as prerequisites (_mentioned in the following sections_).
 
 User should **run the installation script with every kernel version used** on the machine, and **after every upgrade** to a new kernel version.
 
-## Prerequisites
-Refer to: [Build Prerequisites](https://github.com/cronologic-de/cronologic_linux_kernel#build-prerequisites)
-
-## Installation Steps
+### Installation Steps
 To install the driver:
 1. Clone this repository, either download it as .zip file and extract it, or use git.
 ```CMD
@@ -234,8 +278,8 @@ sudo insmod ../../../build/linux/bin/release_64/crono_pci_drvmod.ko
 ```
 4. And, voi la. The driver module name is `crono_pci_drvmod`.
 
-### `install.sh` 
-#### Usage
+## `install.sh` 
+### Usage
 ```CMD
     sudo bash ./install.sh [Options]
 
@@ -247,12 +291,12 @@ sudo insmod ../../../build/linux/bin/release_64/crono_pci_drvmod.ko
         (by default) driver is installed. Ignored if -u is used.
     -b  Add driver to (B)oot. If '-b 0', driver will not be added to boot, otherwise,
         (by default) driver is added. Ignored if -u is used.
-    -u  Uninstall the driver and remove it from bood startup.
+    -u  Uninstall the driver and remove it from boot startup.
     -d  Display (D)ebug Messages.
     -h  Display (H)elp and usage and exit.
 ```
 
-#### Hints
+### Hints
 * The script installs the `release` build of the driver, however, you can install the `debug` build of the driver, _that is built automatically by the script_, by replaceing the line:
 ```CMD
 DRVR_INST_SRC_PATH="../build/linux/bin/debug_64/$DRVR_FILE_NAME.ko"
@@ -271,6 +315,15 @@ sudo bash ./install.sh -d
 ```
 
 ## Uninstall the Driver
+
+### Uninstall Using `DKMS`
+Run `dkms` `remove` command from the project folder, e.g.
+```
+sudo dkms remove crono_pci_drvmod/1.0.0 --all --force
+```
+It will both uninstall the driver module from `dkms` tree, and remove the module from the system and root by calling `install.sh`.
+
+### Uninstall Manually
 Run the following command and it will uninstall the driver (if installed), and remove it from boot (if it's there):
 ```CMD
 sudo bash ./install.sh -u

@@ -1,4 +1,3 @@
-# -----------------------------------------------------------------------------
 # 					Kernel Module - 64 Bit Release Build 
 # -----------------------------------------------------------------------------
 
@@ -8,9 +7,18 @@ CONFIG_MODULE_SIG=n
 #_____________________
 # Set global variables
 #
-TARGET 	:= crono_pci_drvmod
-KDIR 	:= /lib/modules/$(shell uname -r)/build
-PWD 	:= $(shell pwd)
+ifdef KERNELRELEASE
+# Runs from DKMS, use the kernel version being managed by DKMS
+# Makefile is called more than once by DKMS, for clean, build, etc...
+KVER 	:= $(KERNELRELEASE)
+else
+# Runs from command line, use the current kernel (version) 
+KVER := $(shell uname -r)
+endif
+
+KDIR    := /lib/modules/$(KVER)/build
+TARGET  := crono_pci_drvmod
+PWD     := $(shell pwd)
 
 # Relative path to /build/bin 
 BLDBINPATH	:= ../../../build/linux/bin
@@ -18,8 +26,7 @@ BLDBINPATH	:= ../../../build/linux/bin
 # Turn it on to avoid dmesg error `tainting kernel`
 CONFIG_MODULE_SIG=y
 
-# Kernel Version
-KVER := $(shell uname -r)
+# Version information
 KMAJ := $(shell echo $(KVER) | \
 sed -e 's/^\([0-9][0-9]*\)\.[0-9][0-9]*\.[0-9][0-9]*.*/\1/')
 KMIN := $(shell echo $(KVER) | \
@@ -61,12 +68,12 @@ all:
 	$(MAKE) -C $(KDIR) M=$(PWD) modules 
 	$(call CRONO_COPY_DRVMOD_TARGET,$(TARGET).ko,,release_64)
 	$(call CRONO_CLEAN_SYMLINKS)
-	
+	$(CRONO_CREATE_INST_SCRIPT)
+
 clean:
-	-$(MAKE) -C $(KDIR) M=$(PWD) clean || true
+	$(MAKE) -C $(KDIR) M=$(PWD) clean || true
 	$(call CRONO_CLEAN_SYMLINKS)
 	rm -f $(BLDBINPATH)/release_64/$(TARGET).ko
-
 # _____________________________________________________________________________
 # Custom Functions
 #
@@ -79,11 +86,6 @@ define CRONO_CREATE_SYMLINKS
 endef
 
 # Cleanup symbolic links 
-define CRONO_CLEAN_SYMLINKS
-	rm -f $(PWD)/crono_kernel_module.c
-	rm -f $(PWD)/crono_kernel_module.h
-	rm -f $(PWD)/crono_miscdevice.h
-endef
 
 # $1: Target 
 # $2: Empty
@@ -93,4 +95,21 @@ define CRONO_COPY_DRVMOD_TARGET
 	mkdir -p $(BLDBINPATH)/$(3)
 	cp -t $(BLDBINPATH)/$(3) $(1)
 endef
+
+ifdef KERNELRELEASE
+INST_SCRIPT_PATH:=$(PWD)/../../../crono_dkms_kver
+define CRONO_CREATE_INST_SCRIPT
+# Create file with info on `/var/lib/dkms/crono_pci_drvmod/<version>`
+# File is created once, as folder is cleanded up with `dkms remove` needed
+# to re-install the module.
+    $(info Crono: CRONO_CREATE_INST_SCRIPT is defined)
+	echo "Crono: DKMS installation script will be created in `$(INST_SCRIPT_PATH)`"
+	rm -f $(INST_SCRIPT_PATH)
+	echo $(KERNELRELEASE) >> $(INST_SCRIPT_PATH)
+endef
+else
+define CRONO_CREATE_INST_SCRIPT
+	echo ""
+endef
+endif
 

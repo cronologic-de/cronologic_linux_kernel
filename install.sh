@@ -1,7 +1,12 @@
 # -----------------------------------------------------------------------------
 # 		Batch script to install/uninstall cronologic linux PCI driver
 # -----------------------------------------------------------------------------
-
+#
+# Prerequisites:
+# - If called from DKMS, e.g. in the POST_INSTALL, someone (mainly 
+#   dkms_install.sh/dkms_uninstall.sh) should export the Environment Variable 
+#   `CRONO_DKMS_KERNELRELEASE` with the Kernel Release (mainly DKMS 
+#   KERNELRELEASE) value BEFORE executing this script.
 #
 # Functions  __________________________________________________________________
 #
@@ -39,7 +44,7 @@ crono_remove_driver_module()
 {
     crono_run_command "sudo rmmod $DRVR_FILE_NAME.ko"
     if [ -n "$CMD_RESULT" ]; then
-        printf "Error removing driver: %s\n" "$CMD_RESULT"
+        printf "Crono: error removing driver: %s\n" "$CMD_RESULT"
     else 
         # Command ran successfully
         if [ -n "$DEBUG_CRONO" ]; then
@@ -57,7 +62,7 @@ crono_remove_driver_module()
 # Set $DRVR_IS_IN_KERNEL_BOOT_DIR
 crono_check_driver_in_boot_directory()
 {
-    [ -n "$DEBUG_CRONO" ] && printf "Checking driver previous boot startup settings..."
+    [ -n "$DEBUG_CRONO" ] && printf "Crono: checking driver previous boot startup settings..."
     [ -n "$DEBUG_CRONO" ] && printf "\n"
     crono_run_command "find $KERNEL_BOOT_DIR -name $DRVR_FILE_NAME.ko"
     DRVR_IS_IN_KERNEL_BOOT_DIR=$CMD_RESULT
@@ -83,7 +88,7 @@ crono_check_driver_in_boot_list() {
 }
 
 crono_build() {
-    printf "Checking build prerequisites... "
+    printf "Crono: checking build prerequisites... "
     which make &> /dev/null 
     if [ $? -ne 0 ]; then
         printf "Error: <make> is not found, please install it\n"
@@ -91,23 +96,23 @@ crono_build() {
     fi
     which gcc &> /dev/null 
     if [ $? -ne 0 ]; then
-        printf "Error: <gcc> is not found, please install it\n"
+        printf "Crono: error: <gcc> is not found, please install it\n"
         exit 1
     fi
 #    which g++ &> /dev/null 
 #    if [ $? -ne 0 ]; then
-#        printf "Error: <g++> is not found, please install it\n"
+#        printf "Crono: error: <g++> is not found, please install it\n"
 #        exit 1
 #    fi
     printf "done\n"
 
-    printf "Building driver code... "
+    printf "Crono: building driver code... \n"
     sudo make clean -s 2>> "$ERR_LOG_FILE"
     sudo make -s 2>> "$ERR_LOG_FILE"
     crono_run_command "find $DRVR_INST_SRC_PATH"
     if [ -z "$CMD_RESULT" ]; then
         # Driver module file is not found 
-        printf "Error Building the Driver: check log <$ERR_LOG_FILE> for details\n"
+        printf "Crono: error Building the Driver: check log <$ERR_LOG_FILE> for details\n"
         exit 1
     fi
     printf "done\n"
@@ -126,17 +131,31 @@ else
 fi    
 
 MACHINE_TYPE=`uname -m`
-KERNEL_VERSION=`uname -r`
-KERNEL_BOOT_DIR="/lib/modules/$KERNEL_VERSION/kernel/drivers/pci"
 
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
     # 64-bit stuff here
     DRVR_FILE_NAME="crono_pci_drvmod"
-    DRVR_INST_SRC_PATH="../build/linux/bin/debug_64/$DRVR_FILE_NAME.ko"
+    RUNNING_KERNEL_VERSION=`uname -r`
+    if [ -z "$CRONO_DKMS_KERNELRELEASE" ]; then
+    # DKMS is NOT the caller, get info normally
+        TARGET_KERNEL_VERSION=`uname -r`
+        DRVR_INST_SRC_PATH="../build/linux/bin/debug_64/$DRVR_FILE_NAME.ko"
+    else
+    # DKMS IS the caller, use its info instead
+    	TARGET_KERNEL_VERSION=$CRONO_DKMS_KERNELRELEASE
+        DRVR_INST_SRC_PATH="/lib/modules/$TARGET_KERNEL_VERSION/updates/dkms/$DRVR_FILE_NAME.ko"
+        if [ "$TARGET_KERNEL_VERSION" != "$RUNNING_KERNEL_VERSION" ]; then
+            # DKMS installs for a target kernel version that is different
+            # than the running kernel version, e.g. upgrading system.
+            DMKS_DIFF_TARGET=1
+        fi
+    fi
+    [ -n "$DEBUG_CRONO" ] && printf "Crono: DRVR_INST_SRC_PATH: $DRVR_INST_SRC_PATH\n"
 else
     echo "Machine type <${MACHINE_TYPE}> is not supported"
     exit 1
 fi
+KERNEL_BOOT_DIR="/lib/modules/$TARGET_KERNEL_VERSION/kernel/drivers/pci"
 
 # Script options variables
 DRVR_IS_IN_KERNEL_BOOT_DIR=
@@ -168,7 +187,7 @@ Usage:
         (by default) driver is installed. Ignored if -u is used.
     -b  Add driver to (B)oot. If '-b 0', driver will not be added to boot, otherwise,
         (by default) driver is added. Ignored if -u is used.
-    -u  Uninstall the driver and remove it from bood startup.
+    -u  Uninstall the driver and remove it from boot startup.
     -d  Display (D)ebug Messages.
     -h  Display (H)elp and usage and exit.
 "
@@ -186,11 +205,11 @@ do
     i) if [ $OPTARG == "0" ]; then DONT_INSTALL_DRVR=1; fi;;
     u) UINSTALL_DRVR=1;;
     h) echo "$USAGE_MSG"
-        [ -n "$DEBUG_CRONO" ] && set +x; 
+       [ -n "$DEBUG_CRONO" ] && set +x; 
        exit 0;;
     d) DEBUG_CRONO=1;;
     ?) echo "$USAGE_MSG"
-        [ -n "$DEBUG_CRONO" ] && set +x; 
+       [ -n "$DEBUG_CRONO" ] && set +x; 
        exit 2;;
     esac
 done
@@ -199,19 +218,19 @@ done
 # Initialization  _____________________________________________________________
 #
 [ -n "$DEBUG_CRONO" ] && set -x; 
-[ -n "$DEBUG_CRONO" ] && printf "Driver file name: <%s>, path: <%s>\n" "$DRVR_FILE_NAME" "$DRVR_INST_SRC_PATH"
+[ -n "$DEBUG_CRONO" ] && printf "Crono: driver file name: <%s>, path: <%s>\n" "$DRVR_FILE_NAME" "$DRVR_INST_SRC_PATH"
 
 #
 # Get Kernel Information ______________________________________________________
 #
-printf "Checking kernel information... "
+printf "Crono: checking kernel information... "
 [ -n "$DEBUG_CRONO" ] && printf "\n"
-if [ -z "$KERNEL_VERSION" ]; then
-    printf "Error getting kernel level, try running using -d option"
+if [ -z "$TARGET_KERNEL_VERSION" ]; then
+    printf "Crono: error getting kernel level, try running using -d option"
     [ -n "$DEBUG_CRONO" ] && set +x; 
     exit 2
 else
-    [ -n "$DEBUG_CRONO" ] && printf "Kernel Version is: %s\n" "$KERNEL_VERSION"
+    [ -n "$DEBUG_CRONO" ] && printf "Crono: Target Kernel Version is: %s\n" "$TARGET_KERNEL_VERSION"
 fi
 echo "done"
 
@@ -219,14 +238,27 @@ echo "done"
 # Building the driver code  ___________________________________________________
 #
 if [ -z "$UINSTALL_DRVR" ]; then
-    crono_build
+    if [ -z "$CRONO_DKMS_KERNELRELEASE" ]; then
+    # Not called from DKMS, go ahead and build.
+	    crono_build
+    else
+    # Don't build, as DKMS calls make, and .ko file is got from there instead
+	    printf "Crono: Kernel Module will be got from DKMS build folder instead of building it.\n"
+    fi
 fi
 
 #
 # Uninstall the driver ________________________________________________________
+# Uninstallation from "Running Kernel".
 #
-if [ -n "$UINSTALL_DRVR" ]; then
-    printf "Uninstalling driver... "
+# If called from DKMS: only uninstall if the "Target Kenrel" is the "Running
+# Kernel" (i.e. KDMS is uninstalling from the currently running kernel), 
+# otherwise (i.e. when $DMKS_DIFF_TARGET has value, DKMS is uninstalling 
+# from a different kernel version), don't uninstall the module from the current 
+# running kernel.
+#
+if [ -n "$UINSTALL_DRVR" ] && [ -z "$DMKS_DIFF_TARGET" ]; then
+    printf "Crono: uninstalling driver... "
     [ -n "$DEBUG_CRONO" ] && printf "\n"
 
     crono_is_driver_installed
@@ -238,20 +270,20 @@ if [ -n "$UINSTALL_DRVR" ]; then
         echo "done"
     fi
     
-    printf "Unsetting driver from start on boot... "
+    printf "Crono: unsetting driver from start on boot... "
 
     # Remove file from boot driver folder if found
     crono_check_driver_in_boot_directory
     ERR_REMOVING_FROM_BOOT=
     if [ -n "$DRVR_IS_IN_KERNEL_BOOT_DIR" ]; then
         FILE_PATH_ON_BOOT=$KERNEL_BOOT_DIR/$DRVR_FILE_NAME.ko
-        [ -n "$DEBUG_CRONO" ] && printf "Removing the file <%s>\n" "$FILE_PATH_ON_BOOT"
+        [ -n "$DEBUG_CRONO" ] && printf "Crono: removing the file <%s>\n" "$FILE_PATH_ON_BOOT"
         crono_run_command "sudo rm $FILE_PATH_ON_BOOT"
         if [ -z "$CMD_RESULT" ]; then 
             DRVR_IS_IN_KERNEL_BOOT_DIR=
-            [ -n "$DEBUG_CRONO" ] && echo "Succesfully removed the file"
+            [ -n "$DEBUG_CRONO" ] && echo "Crono: succesfully removed the file"
         else
-            [ -n "$DEBUG_CRONO" ] && printf "Error removing the file <%s>" "$CMD_RESULT"
+            [ -n "$DEBUG_CRONO" ] && printf "Crono: error removing the file <%s>" "$CMD_RESULT"
             ERR_REMOVING_FROM_BOOT=1
         fi
     fi
@@ -259,11 +291,11 @@ if [ -n "$UINSTALL_DRVR" ]; then
     # Remove file from boot modules list if found
     crono_check_driver_in_boot_list
     if [ -n "$DRVR_IS_IN_STARTUP" ]; then
-        [ -n "$DEBUG_CRONO" ] && printf "Removing text <%s> from $SYS_MOD_LOAD_FILE\n" "$DRVR_FILE_NAME"
+        [ -n "$DEBUG_CRONO" ] && printf "Crono: removing text <%s> from $SYS_MOD_LOAD_FILE\n" "$DRVR_FILE_NAME"
         crono_run_command "sudo sed -i s/$DRVR_FILE_NAME// $SYS_MOD_LOAD_FILE"
         crono_check_driver_in_boot_list
         if [ -n "$DRVR_IS_IN_STARTUP" ]; then
-            echo "Error removing the file from boot list"
+            echo "Crono: error removing the file from boot list"
             ERR_REMOVING_FROM_BOOT=1
         fi
     fi
@@ -279,7 +311,7 @@ fi
 #
 # Check currently installed driver  ___________________________________________
 #
-printf "Checking currently installed (loaded) driver...  "
+printf "Crono: checking currently installed (loaded) driver...  "
 [ -n "$DEBUG_CRONO" ] && printf "\n"
 
 crono_is_driver_installed
@@ -288,61 +320,76 @@ echo "done"
 
 #
 # Stop Loaded Driver  _____________________________________________________________
+# Stop from "Running Kernel".
 #
-if [ -n "$DRVR_IS_INSTALLED" ] && [ -z $DONT_STOP_LOADED_DRVR ]; then
+# If called from DKMS: only stop driver if the "Target Kenrel" is the "Running
+# Kernel" (i.e. KDMS is calls for the currently running kernel), otherwise 
+# (i.e. when $DMKS_DIFF_TARGET has value, DKMS is called for a different kernel 
+# version), don't stop the module on the current running kernel.
+#
+if [ -n "$DRVR_IS_INSTALLED" ] && [ -z "$DONT_STOP_LOADED_DRVR" ] \
+   && [ -z "$DMKS_DIFF_TARGET" ]; then
 # Driver is installed and can stop it
-    printf "Uninstalling the installed (loaded) driver... "
+    printf "Crono: uninstalling the installed (loaded) driver... "
     [ -n "$DEBUG_CRONO" ] && printf "\n"
     crono_remove_driver_module
     [ "$DRVR_IS_INSTALLED" == "" ] && echo "done"
 else
-    [ -n "$DEBUG_CRONO" ] && printf "Will not stop installed driver, either not installed or option not to.\n" "$CMD_RESULT"
+    [ -n "$DEBUG_CRONO" ] && printf "Crono: will not stop installed driver, "\
+        "either not installed or option not to, "\
+        "or DKMS runs on a different kernel version.\n" "$CMD_RESULT"
 fi
 
 #
 # Install driver  _____________________________________________________________
+# Install on "Running Kernel".
 #
-if [ -n $DONT_INSTALL_DRVR ]; then
+# If called from DKMS: only install driver if the "Target Kenrel" is the "Running
+# Kernel" (i.e. KDMS is calls for the currently running kernel), otherwise 
+# (i.e. when $DMKS_DIFF_TARGET has value, DKMS is called for a different kernel 
+# version), don't isntall the module on the current running kernel.
+#
+if [ -z "$DONT_INSTALL_DRVR" ] && [ -z "$DMKS_DIFF_TARGET" ]; then
     if [ -n "$DRVR_IS_INSTALLED" ]; then
-# Uninstall the installed driver
-        printf "Uninstalling the installed (loaded) driver... "
+    # Uninstall the installed driver
+        printf "Crono: uninstalling the installed (loaded) driver... "
         [ -n "$DEBUG_CRONO" ] && printf "\n"
         crono_remove_driver_module
         [ "$DRVR_IS_INSTALLED" == "" ] && echo "done"
     fi
-    printf "Installing driver... "
+    printf "Crono: installing driver... "
     [ -n "$DEBUG_CRONO" ] && printf "\n"
     crono_run_command "sudo insmod $DRVR_INST_SRC_PATH"
     if [ -n "$CMD_RESULT" ]; then
-        printf "Error installing driver: %s\n" "$CMD_RESULT"
+        printf "Crono: error installing driver: %s\n" "$CMD_RESULT"
     else 
         echo "done"
         DRVR_IS_INSTALLED=1
     fi
 else
-    [ -n "$DEBUG_CRONO" ] && printf "Will not install driver, option not to.\n" "$CMD_RESULT"
+    [ -n "$DEBUG_CRONO" ] && printf "Crono: will not install driver, option not to.\n" "$CMD_RESULT"
 fi
 
 #
-# Check Previous Installation  ________________________________________________
+# Adding to boot  _____________________________________________________________
 #
 if [ -z "$DONT_ADD_TO_BOOT" ]; then 
 # Allowed to add driver to boot
-    printf "Setting driver to start on boot... "
+    printf "Crono: setting driver to start on boot... "
     [ -n "$DEBUG_CRONO" ] && printf "\n"
 
     # Copy/replace the driver module  _________________________________________
     crono_check_driver_in_boot_directory 
-    crono_run_command "sudo cp $DRVR_INST_SRC_PATH /lib/modules/$KERNEL_VERSION/kernel/drivers/pci/$DRVR_FILE_NAME.ko"
-    [ -n "$CMD_RESULT" ] && printf "Error copying the file: %s" "$CMD_RESULT"
+    crono_run_command "sudo cp $DRVR_INST_SRC_PATH /lib/modules/$TARGET_KERNEL_VERSION/kernel/drivers/pci/$DRVR_FILE_NAME.ko"
+    [ -n "$CMD_RESULT" ] && printf "Crono: error copying the file: %s" "$CMD_RESULT"
     crono_run_command "sudo depmod"
-    [ -n "$CMD_RESULT" ] && printf "Error updating modules dependencies: %s" "$CMD_RESULT"
+    [ -n "$CMD_RESULT" ] && printf "Crono: error updating modules dependencies: %s" "$CMD_RESULT"
  
     # Add driver to boot list  ________________________________________________
     crono_check_driver_in_boot_list
     if [ -z "$DRVR_IS_IN_STARTUP" ]; then
         echo $DRVR_FILE_NAME | sudo tee -a $SYS_MOD_LOAD_FILE > /dev/null
-        [ -n "$DEBUG_CRONO" ] && echo "Driver Name is successfully added to boot $SYS_MOD_LOAD_FILE"
+        [ -n "$DEBUG_CRONO" ] && echo "Crono: Driver Name is successfully added to boot $SYS_MOD_LOAD_FILE"
     fi
 
     echo "done"

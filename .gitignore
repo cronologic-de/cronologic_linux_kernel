@@ -49,7 +49,6 @@
 modules.order
 Module.symvers
 Mkfile.old
-dkms.conf
 *.dwo
 build
 dep_pkg
@@ -62,3 +61,4 @@ conanmanifest.txt
 conanbuildinfo.txt
 conaninfo.txt
 deploy_manifest.txt
+crono.info
