@@ -25,7 +25,7 @@ Access is done by userspace and applications via the following ways:
 
 The driver is designed to be used for all cronologic devices that are installed on PCIe or Thunderbolt sockets.
 
-`dkms.conf` is provided to install the driver module without the need to, _manually_, compile and build it, and supporting the automatic build and installation of the driver module with every new kernel version installed on the system.
+`dkms.conf` is provided to install the driver module without the need to, _manually_, compile and build it, and supporting the automatic build and installation of the driver module with every new kernel version installed on the system. 
 
 ## Architecture
 <p align="center">
