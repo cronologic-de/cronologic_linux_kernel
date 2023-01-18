@@ -389,7 +389,7 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
         long actual_pinned_nr_of_call; // Never unsigned, as it might contain
                                        // error returned
         int ret = CRONO_SUCCESS;
-        int page_index;
+        // int page_index;
 
         pr_debug("Pinning buffer...");
 
@@ -505,21 +505,22 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
                         return ret;
         }
 
-        // Fill in the `userspace_pages` Page Array
-        for (page_index = 0; page_index < buff_wrapper->buff_info.pages_count;
-             page_index++) {
-                buff_wrapper->userspace_pages[page_index] =
-                    PFN_PHYS(page_to_pfn(
-                        (struct page *)buff_wrapper->kernel_pages[page_index]));
-#ifdef DEBUG
-                if (page_index < 5)
-                        // Log only first 5 pages
-                        pr_debug("ioctl_pin: Kernel Page <%d> is of "
-                                 "physical address <0x%llx>",
-                                 page_index,
-                                 buff_wrapper->userspace_pages[page_index]);
-#endif
-        }
+        // Old way to fill in the `userspace_pages` Page Array, don't fill it
+        // now it will be filled later on from sg
+        // for (page_index = 0; page_index < buff_wrapper->buff_info.pages_count;
+        //      page_index++) {
+        //         buff_wrapper->userspace_pages[page_index] =
+        //             PFN_PHYS(page_to_pfn(
+        //                 (struct page *)buff_wrapper->kernel_pages[page_index]));
+// #ifdef DEBUG
+//                 if (page_index < 5)
+//                         // Log only first 5 pages
+//                         pr_debug("ioctl_pin: Kernel Page <%d> is of "
+//                                  "physical address <0x%llx>",
+//                                  page_index,
+//                                  buff_wrapper->userspace_pages[page_index]);
+// #endif
+        // }
 
 #ifndef OLD_KERNEL_FOR_PIN
         // Calculate actual size in case pinned memory is larger than buffer
@@ -651,12 +652,14 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
         int ret;
         struct sg_table *sgt = NULL;
         int mapped_buffers_count = 0;
+        struct scatterlist *sg;
 #ifdef USE__sg_alloc_table_from_pages
         int page_index;
-        struct scatterlist *sg;
         struct scatterlist *sg_from_pages = NULL;
         DWORD dw_mapped_pages_size = 0;
 #endif
+        int page_nr = 0;
+        int i = 0 ;
 
         // Validate parameters
         LOGERR_RET_EINVAL_IF_NULL(buff_wrapper->kernel_pages,
@@ -767,6 +770,29 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
                  "number <%d>"
                  ", Mapped buffers count <%d>",
                  sgt->nents, mapped_buffers_count);
+
+        pr_debug("Filling DMA physical addresses ...");
+        for_each_sg(sgt->sgl, sg, mapped_buffers_count, i) {
+                int len = sg_dma_len(sg);
+                dma_addr_t addr = sg_dma_address(sg);
+                while (len > 0) {
+                        buff_wrapper->userspace_pages[page_nr] = addr;
+                        page_nr++;
+                        if (page_nr > buff_wrapper->buff_info.pages_count) {
+                                pr_err("Inconsistent number of pages between sg and buffer, "
+                                        "sg pages count is <%d>, buffer pages count is <%d>",
+                                        page_nr, buff_wrapper->buff_info.pages_count);
+                        }
+                        len -= 4096;    // Replace by PAGE_SIZE
+                        addr += 4096;   // Replace by PAGE_SIZE
+                }
+        }
+        if (page_nr != buff_wrapper->buff_info.pages_count) {
+                pr_err("Inconsistent number of pages between sg and buffer, "
+                        "sg pages count is <%d>, buffer pages count is <%d>",
+                        page_nr, buff_wrapper->buff_info.pages_count);
+        }
+        pr_debug("Done mapping SG");
 
         // Success
         return CRONO_SUCCESS;
