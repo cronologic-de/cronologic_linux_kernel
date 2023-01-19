@@ -12,7 +12,7 @@ class CronoLinuxKerneModuleConan(ConanFile):
     # __________________________________________________________________________
     # Values to be reviewed with every new version
     #
-    version = "0.0.2"
+    version = "1.0.1"
 
     # __________________________________________________________________________
     # Member variables
