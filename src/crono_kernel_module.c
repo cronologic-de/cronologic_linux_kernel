@@ -999,9 +999,7 @@ static int _crono_get_DBDF_from_dev(struct pci_dev *dev,
 
         if (dev->bus != NULL) {
                 dbdf->bus = dev->bus->number;
-                if (dev->bus->parent != NULL) {
-                        dbdf->domain = dev->bus->parent->number;
-                }
+                dbdf->domain = pci_domain_nr(dev->bus);
         }
         dbdf->dev = PCI_SLOT(dev->devfn);
         dbdf->func = PCI_FUNC(dev->devfn);

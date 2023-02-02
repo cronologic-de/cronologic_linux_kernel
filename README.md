@@ -319,7 +319,7 @@ sudo bash ./install.sh -d
 ### Uninstall Using `DKMS`
 Run `dkms` `remove` command from the project folder, e.g.
 ```
-sudo dkms remove crono_pci_drvmod/1.0.0 --all --force
+sudo dkms remove crono_pci_drvmod/1.0.2 --all --force
 ```
 It will both uninstall the driver module from `dkms` tree, and remove the module from the system and root by calling `install.sh`.
 
