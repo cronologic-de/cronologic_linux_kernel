@@ -31,4 +31,4 @@ printf "Crono: uninstalling kernel module for DKMS kernel version [$CRONO_DKMS_K
 
 # `install.sh` is on `source`
 cd source
-./install.sh -u
+bash ./install.sh -u

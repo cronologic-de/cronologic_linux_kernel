@@ -13,7 +13,7 @@ KDIR 	:= /lib/modules/$(shell uname -r)/build
 PWD 	:= $(shell pwd)
 
 # Relative path to /build/bin 
-BLDBINPATH	:= ../../../build/linux/bin
+BLDBINPATH	:= ../../build/linux/bin
 
 # Turn it on to avoid dmesg error `tainting kernel`
 CONFIG_MODULE_SIG=y

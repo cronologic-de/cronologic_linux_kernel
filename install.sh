@@ -132,7 +132,10 @@ fi
 
 MACHINE_TYPE=`uname -m`
 
-if [ ${MACHINE_TYPE} == 'x86_64' ]; then
+if [ $MACHINE_TYPE != "x86_64" ]; then
+    echo "Machine type <${MACHINE_TYPE}> is not supported"
+    exit 1
+else
     # 64-bit stuff here
     DRVR_FILE_NAME="crono_pci_drvmod"
     RUNNING_KERNEL_VERSION=`uname -r`
@@ -151,9 +154,6 @@ if [ ${MACHINE_TYPE} == 'x86_64' ]; then
         fi
     fi
     [ -n "$DEBUG_CRONO" ] && printf "Crono: DRVR_INST_SRC_PATH: $DRVR_INST_SRC_PATH\n"
-else
-    echo "Machine type <${MACHINE_TYPE}> is not supported"
-    exit 1
 fi
 KERNEL_BOOT_DIR="/lib/modules/$TARGET_KERNEL_VERSION/kernel/drivers/pci"
 
@@ -333,7 +333,7 @@ if [ -n "$DRVR_IS_INSTALLED" ] && [ -z "$DONT_STOP_LOADED_DRVR" ] \
     printf "Crono: uninstalling the installed (loaded) driver... "
     [ -n "$DEBUG_CRONO" ] && printf "\n"
     crono_remove_driver_module
-    [ "$DRVR_IS_INSTALLED" == "" ] && echo "done"
+    [ "$DRVR_IS_INSTALLED" != "" ] || echo "done"
 else
     [ -n "$DEBUG_CRONO" ] && printf "Crono: will not stop installed driver, "\
         "either not installed or option not to, "\

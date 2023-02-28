@@ -184,7 +184,7 @@ static int crono_driver_probe(struct pci_dev *dev,
         // Since crono devices can all handle full 64 bit address as DMA source
         // and destination, we need to set 64-bit mask to avoid using `swiotlb`
         // by linux when calling `dma_map_sg`.
-        ret = pci_set_dma_mask(dev, DMA_BIT_MASK(64));
+        ret = dma_set_mask(&dev->dev, DMA_BIT_MASK(64));        
         if (ret != CRONO_SUCCESS) {
                 pr_err("Device cannot perform DMA properly on this platform, "
                        "error <%d>",

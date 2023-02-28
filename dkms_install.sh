@@ -28,4 +28,4 @@ printf "Crono: installing kernel module for DKMS kernel version [$CRONO_DKMS_KER
 
 # `install.sh` is on `source`
 cd source
-./install.sh
+bash ./install.sh
