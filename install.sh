@@ -42,7 +42,7 @@ crono_is_driver_installed() {
 # Set $DRVR_IS_INSTALLED to null upon success.
 crono_remove_driver_module() 
 {
-    crono_run_command "sudo rmmod $DRVR_FILE_NAME.ko"
+    crono_run_command "sudo rmmod $DRVR_FILE_NAME$FILE_EXT"
     if [ -n "$CMD_RESULT" ]; then
         printf "Crono: error removing driver: %s\n" "$CMD_RESULT"
     else 
@@ -64,7 +64,7 @@ crono_check_driver_in_boot_directory()
 {
     [ -n "$DEBUG_CRONO" ] && printf "Crono: checking driver previous boot startup settings..."
     [ -n "$DEBUG_CRONO" ] && printf "\n"
-    crono_run_command "find $KERNEL_BOOT_DIR -name $DRVR_FILE_NAME.ko"
+    crono_run_command "find $KERNEL_BOOT_DIR -name $DRVR_FILE_NAME$FILE_EXT"
     DRVR_IS_IN_KERNEL_BOOT_DIR=$CMD_RESULT
     if [ -n "$DRVR_IS_IN_KERNEL_BOOT_DIR" ]; then
     # Driver module file is already found on /lib/modules
@@ -125,9 +125,17 @@ crono_build() {
 OS_REDHAT=
 [ -f /etc/redhat-release ] && OS_REDHAT=1 
 if [ -n "$OS_REDHAT" ] ; then
+    # Redhat-based dist
     SYS_MOD_LOAD_FILE=/usr/lib/modules-load.d/cronologic.conf
+    if grep -q "Rocky" /etc/redhat-release; then
+    	IS_ROCKY="1"
+    fi
+    # Formats the file to .xz
+    FILE_EXT=.ko.xz
 else
+    # Debian-based dist
     SYS_MOD_LOAD_FILE=/etc/modules
+    FILE_EXT=.ko
 fi    
 
 MACHINE_TYPE=`uname -m`
@@ -146,7 +154,12 @@ else
     else
     # DKMS IS the caller, use its info instead
     	TARGET_KERNEL_VERSION=$CRONO_DKMS_KERNELRELEASE
-        DRVR_INST_SRC_PATH="/lib/modules/$TARGET_KERNEL_VERSION/updates/dkms/$DRVR_FILE_NAME.ko"
+    	
+	if [ -n "$OS_REDHAT" ] ; then
+  	    DRVR_INST_SRC_PATH="/lib/modules/$TARGET_KERNEL_VERSION/extra/$DRVR_FILE_NAME$FILE_EXT"
+	else
+	    DRVR_INST_SRC_PATH="/lib/modules/$TARGET_KERNEL_VERSION/updates/dkms/$DRVR_FILE_NAME$FILE_EXT"
+	fi    
         if [ "$TARGET_KERNEL_VERSION" != "$RUNNING_KERNEL_VERSION" ]; then
             # DKMS installs for a target kernel version that is different
             # than the running kernel version, e.g. upgrading system.
@@ -275,8 +288,8 @@ if [ -n "$UINSTALL_DRVR" ] && [ -z "$DMKS_DIFF_TARGET" ]; then
     # Remove file from boot driver folder if found
     crono_check_driver_in_boot_directory
     ERR_REMOVING_FROM_BOOT=
-    if [ -n "$DRVR_IS_IN_KERNEL_BOOT_DIR" ]; then
-        FILE_PATH_ON_BOOT=$KERNEL_BOOT_DIR/$DRVR_FILE_NAME.ko
+    if [ -n "$DRVR_IS_IN_KERNEL_BOOT_DIR" ] && [ -z "$OS_REDHAT" ]; then
+        FILE_PATH_ON_BOOT=$KERNEL_BOOT_DIR/$DRVR_FILE_NAME$FILE_EXT
         [ -n "$DEBUG_CRONO" ] && printf "Crono: removing the file <%s>\n" "$FILE_PATH_ON_BOOT"
         crono_run_command "sudo rm $FILE_PATH_ON_BOOT"
         if [ -z "$CMD_RESULT" ]; then 
@@ -378,9 +391,9 @@ if [ -z "$DONT_ADD_TO_BOOT" ]; then
     printf "Crono: setting driver to start on boot... "
     [ -n "$DEBUG_CRONO" ] && printf "\n"
 
-    # Copy/replace the driver module  _________________________________________
+    # Copy/repladce the driver module  _________________________________________
     crono_check_driver_in_boot_directory 
-    crono_run_command "sudo cp $DRVR_INST_SRC_PATH /lib/modules/$TARGET_KERNEL_VERSION/kernel/drivers/pci/$DRVR_FILE_NAME.ko"
+    crono_run_command "sudo cp $DRVR_INST_SRC_PATH /lib/modules/$TARGET_KERNEL_VERSION/kernel/drivers/pci/$DRVR_FILE_NAME$FILE_EXT"
     [ -n "$CMD_RESULT" ] && printf "Crono: error copying the file: %s" "$CMD_RESULT"
     crono_run_command "sudo depmod"
     [ -n "$CMD_RESULT" ] && printf "Crono: error updating modules dependencies: %s" "$CMD_RESULT"
