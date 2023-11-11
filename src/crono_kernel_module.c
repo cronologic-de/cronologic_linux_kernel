@@ -320,10 +320,26 @@ static long crono_miscdev_ioctl(struct file *filp, unsigned int cmd,
         return ret;
 }
 
+/**
+ * @brief
+ * - Allocate memory, pin it.
+ * - Create a wrapper (`CRONO_SG_BUFFER_INFO_WRAPPER`), fill its `buff_info`
+ *   from `arg` (`CRONO_SG_BUFFER_INFO`) and set its `id` (unique in module),
+ *   then, add wrapper to list `sg_buff_wrappers_head`.
+ *
+ * Unlock function receives `id` of `buff_info` to unlock it.
+ *
+ * @param filp
+ * Of the device
+ * @param arg
+ * `CRONO_SG_BUFFER_INFO`
+ * @return int
+ * `CRONO_SUCCESS` or error code.
+ */
 static int _crono_miscdev_ioctl_lock_sg_buffer(struct file *filp,
                                                unsigned long arg) {
         int ret;
-        CRONO_BUFFER_INFO_WRAPPER *buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper = NULL;
 #ifdef CRONO_DEBUG_ENABLED
         int ipage, loop_count;
 #endif
@@ -362,7 +378,7 @@ static int _crono_miscdev_ioctl_lock_sg_buffer(struct file *filp,
 
         // Copy back all data to userspace memory
         if (copy_to_user((void __user *)arg, &(buff_wrapper->buff_info),
-                         sizeof(CRONO_BUFFER_INFO))) {
+                         sizeof(CRONO_SG_BUFFER_INFO))) {
                 pr_err("Error copying back buffer information");
                 ret = -EFAULT;
                 goto lock_err;
@@ -392,7 +408,7 @@ lock_err:
 
 static int
 _crono_miscdev_ioctl_pin_buffer(struct file *filp,
-                                CRONO_BUFFER_INFO_WRAPPER *buff_wrapper,
+                                CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper,
                                 unsigned long nr_per_call) {
 
         unsigned long start_addr_to_pin; // Start address in pBuf to be pinned
@@ -559,8 +575,8 @@ static int _crono_miscdev_ioctl_unlock_sg_buffer(struct file *filp,
                                                  unsigned long arg) {
         int ret = CRONO_SUCCESS;
         int wrapper_id = -1;
-        CRONO_BUFFER_INFO_WRAPPER *found_buff_wrapper = NULL;
-        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *found_buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
         struct list_head *pos, *n;
 
         // Lock the memory from user space to kernel space
@@ -578,7 +594,7 @@ static int _crono_miscdev_ioctl_unlock_sg_buffer(struct file *filp,
         _crono_debug_list_wrappers();
         list_for_each_safe(pos, n, &sg_buff_wrappers_head) {
                 temp_buff_wrapper =
-                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, ntrn.list);
+                    list_entry(pos, CRONO_SG_BUFFER_INFO_WRAPPER, ntrn.list);
                 if (temp_buff_wrapper->buff_info.id == wrapper_id)
                         found_buff_wrapper = temp_buff_wrapper;
         }
@@ -662,7 +678,7 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
 
 static int
 _crono_miscdev_ioctl_generate_sg(struct file *filp,
-                                 CRONO_BUFFER_INFO_WRAPPER *buff_wrapper) {
+                                 CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper) {
 
         struct pci_dev *devp;
         int ret;
@@ -827,7 +843,7 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
  *
  * @return int
  */
-static int _crono_release_sg_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *bw) {
+static int _crono_release_sg_buff_wrapper(CRONO_SG_BUFFER_INFO_WRAPPER *bw) {
 #ifdef OLD_KERNEL_FOR_PIN
         int ipage;
 #endif
@@ -1102,10 +1118,10 @@ _crono_get_crono_dev_from_inode(struct inode *miscdev_inode,
 
 static int
 _crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
-                            CRONO_BUFFER_INFO_WRAPPER **pp_buff_wrapper) {
+                            CRONO_SG_BUFFER_INFO_WRAPPER **pp_buff_wrapper) {
 
         int ret = CRONO_SUCCESS;
-        CRONO_BUFFER_INFO_WRAPPER *buff_wrapper =
+        CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper =
             NULL; // To simplify pointer-to-pointer
 
         if (0 == arg) {
@@ -1116,7 +1132,7 @@ _crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
 
         // Allocate and initialize `buff_wrapper`
         *pp_buff_wrapper = buff_wrapper =
-            kmalloc(sizeof(CRONO_BUFFER_INFO_WRAPPER), GFP_KERNEL);
+            kmalloc(sizeof(CRONO_SG_BUFFER_INFO_WRAPPER), GFP_KERNEL);
         if (NULL == buff_wrapper) {
                 pr_err("Error allocating DMA internal struct");
                 return -ENOMEM;
@@ -1136,7 +1152,7 @@ _crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
 
         // Lock the memory from user space to kernel space
         if (copy_from_user(&(buff_wrapper->buff_info), (void __user *)arg,
-                           sizeof(CRONO_BUFFER_INFO))) {
+                           sizeof(CRONO_SG_BUFFER_INFO))) {
                 pr_err("Error copying user data");
                 ret = -EFAULT;
                 goto func_err;
@@ -1205,7 +1221,7 @@ func_err:
 
 static void _crono_debug_list_wrappers(void) {
 #ifdef DEBUG
-        CRONO_BUFFER_INFO_WRAPPER *temp_sg_buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *temp_sg_buff_wrapper = NULL;
         CRONO_CONTIG_BUFFER_INFO_WRAPPER *temp_contig_buff_wrapper = NULL;
         bool wrapper_list_is_empty = true;
         struct list_head *pos = NULL, *n = NULL;
@@ -1215,7 +1231,7 @@ static void _crono_debug_list_wrappers(void) {
         list_for_each_safe(pos, n, &sg_buff_wrappers_head) {
                 wrapper_list_is_empty = false; // Set the flag
                 temp_sg_buff_wrapper =
-                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, ntrn.list);
+                    list_entry(pos, CRONO_SG_BUFFER_INFO_WRAPPER, ntrn.list);
                 PR_DEBUG_BW_INFO("- Wrapper: ", temp_sg_buff_wrapper);
         }
         list_for_each_safe(pos, n, &contig_buff_wrappers_head) {
@@ -1233,7 +1249,7 @@ static void _crono_debug_list_wrappers(void) {
 static int _crono_release_buffer_wrappers() {
         struct list_head *pos = NULL, *n = NULL;
 
-        CRONO_BUFFER_INFO_WRAPPER *temp_sg_buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *temp_sg_buff_wrapper = NULL;
         CRONO_CONTIG_BUFFER_INFO_WRAPPER *temp_contig_buff_wrapper = NULL;
 
         // Clean up all buffer information wrappers and list
@@ -1242,7 +1258,7 @@ static int _crono_release_buffer_wrappers() {
         // SG Buffer Wrappers
         list_for_each_safe(pos, n, &sg_buff_wrappers_head) {
                 temp_sg_buff_wrapper =
-                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, ntrn.list);
+                    list_entry(pos, CRONO_SG_BUFFER_INFO_WRAPPER, ntrn.list);
                 _crono_release_buff_wrapper(temp_sg_buff_wrapper);
                 crono_kvfree(temp_sg_buff_wrapper);
                 // Don't list_del(pos); it's deleted in
@@ -1267,7 +1283,7 @@ static int _crono_release_buffer_wrappers() {
 
 static int _crono_release_buffer_wrappers_cur_proc() {
         struct list_head *pos = NULL, *n = NULL;
-        CRONO_BUFFER_INFO_WRAPPER *temp_sg_buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *temp_sg_buff_wrapper = NULL;
         CRONO_CONTIG_BUFFER_INFO_WRAPPER *temp_contig_buff_wrapper = NULL;
         bool no_wrappers_found = true;
         int app_pid = task_pid_nr(current);
@@ -1279,7 +1295,7 @@ static int _crono_release_buffer_wrappers_cur_proc() {
         // SG Buffer Wrappers
         list_for_each_safe(pos, n, &sg_buff_wrappers_head) {
                 temp_sg_buff_wrapper =
-                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, ntrn.list);
+                    list_entry(pos, CRONO_SG_BUFFER_INFO_WRAPPER, ntrn.list);
                 // Check if the buffer is allocated from the underlying
                 // process
                 if (temp_sg_buff_wrapper->ntrn.app_pid == app_pid) {
