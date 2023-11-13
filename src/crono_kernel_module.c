@@ -1441,7 +1441,13 @@ static int _crono_init_contig_buff_wrapper(
         // Get device pointer in internal structure
         ret = _crono_get_dev_from_filp(filp, &(buff_wrapper->ntrn.devp));
         if (ret != CRONO_SUCCESS) {
-                goto func_err;
+                return -EIO;
+        }
+
+        ret = dma_set_mask_and_coherent(&buff_wrapper->ntrn.devp->dev, DMA_BIT_MASK(64));
+        if (ret) {
+                pr_err("Error seting mask: %d", ret);
+                return -EIO;
         }
 
         // Allocate contiguous memory in kernel space
@@ -1451,7 +1457,7 @@ static int _crono_init_contig_buff_wrapper(
         if (buff_wrapper->kernel_buff == NULL) {
                 // Just null, no global error setting, check `dmsg` if you
                 // need any details
-                ret = -ENOMEM; // Or appropriate error
+                return -ENOMEM; // Or appropriate error
         }
 
         // Since the buffer is kernel-space address returned by
@@ -1471,10 +1477,6 @@ static int _crono_init_contig_buff_wrapper(
         sg_buff_wrappers_new_id++;
         _crono_debug_list_wrappers();
 
-        return ret;
-
-func_err:
-        crono_kvfree(buff_wrapper);
         return ret;
 }
 

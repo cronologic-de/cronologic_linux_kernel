@@ -407,7 +407,7 @@ Sample code to call `ioctl`:
         char miscdev_path[PATH_MAX];
         char miscdev_name[CRONO_DEV_NAME_MAX_SIZE];
         struct crono_dev_DBDF dbdf = {0, 0, 2, 0};
-        CRONO_BUFFER_INFO buff_info;
+        CRONO_SG_BUFFER_INFO buff_info;
 
         // Get the miscdev file path, e.g. `/dev/crono_06_0002000`
         CRONO_CONSTRUCT_MISCDEV_NAME(miscdev_name, 0x06, dbdf);
@@ -537,7 +537,7 @@ Simple skeleton steps are like:
 3. The process `12345` opens `/dev/crono_06_0003000` by calling `open()`, returning file descriptor `fdB`. 
 4. The process `12345` calls `ioctl()` using `fdB` to lock `BufferC` (allocated previously in userspace `12345`).
 5. In the kernel module, `ioctl()` receives a `struct file*` of value `filpD` (in kernel space) that is related to `fdB` (in userspace).  
-6. The kernel module then locks the buffer `BufferC` and assign it to process `12345` (`CRONO_BUFFER_INFO_WRAPPER`.`app_pid`).
+6. The kernel module then locks the buffer `BufferC` and assign it to process `12345` (`CRONO_SG_BUFFER_INFO_WRAPPER`.`app_pid`).
 
 Although a cronologic device can have one and only one ring buffer, but the chart was provided as a general example.
 
