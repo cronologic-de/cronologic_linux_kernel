@@ -371,7 +371,7 @@ static int _crono_miscdev_ioctl_lock_sg_buffer(struct file *filp,
                          buff_wrapper->userspace_pages,
                          buff_wrapper->buff_info.pages_count *
                              sizeof(DMA_ADDR))) {
-                pr_err("Error copying back pages addresses");
+                pr_err("Error copying pages addresses back to user space");
                 ret = -EFAULT;
                 goto lock_err;
         }
@@ -379,7 +379,7 @@ static int _crono_miscdev_ioctl_lock_sg_buffer(struct file *filp,
         // Copy back all data to userspace memory
         if (copy_to_user((void __user *)arg, &(buff_wrapper->buff_info),
                          sizeof(CRONO_SG_BUFFER_INFO))) {
-                pr_err("Error copying back buffer information");
+                pr_err("Error copying buffer information back to user space");
                 ret = -EFAULT;
                 goto lock_err;
         }
@@ -933,8 +933,8 @@ _crono_release_contig_buff_wrapper(CRONO_CONTIG_BUFFER_INFO_WRAPPER *bw) {
         PR_DEBUG_BW_INFO("Releasing contiguous buffer:", bw);
 
         pr_debug("Wrapper<%d>: Cleanup kernel memory...", bw->buff_info.id);
-        dma_free_coherent(NULL, bw->buff_info.size, bw->buff_info.addr,
-                          bw->dma_handle);
+        dma_free_coherent(NULL, bw->buff_info.size, bw->kernel_buff,
+                          bw->dma_handle /* = bw->buff_info.addr*/);
         pr_debug("Done cleanup Wrapper<%d> kernel memory.", bw->buff_info.id);
 
         // Delete the wrapper from the list
@@ -1131,6 +1131,8 @@ _crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
         }
 
         // Allocate and initialize `buff_wrapper`
+        // Should be freed using 'crono_kvfree', e.g. after any call to
+        // `_crono_release_buffxyz` family.
         *pp_buff_wrapper = buff_wrapper =
             kmalloc(sizeof(CRONO_SG_BUFFER_INFO_WRAPPER), GFP_KERNEL);
         if (NULL == buff_wrapper) {
@@ -1150,7 +1152,7 @@ _crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
                 goto func_err;
         }
 
-        // Lock the memory from user space to kernel space
+        // Copy buffer information from user space to kernel space
         if (copy_from_user(&(buff_wrapper->buff_info), (void __user *)arg,
                            sizeof(CRONO_SG_BUFFER_INFO))) {
                 pr_err("Error copying user data");
@@ -1412,6 +1414,21 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
         return ret;
 }
 
+/**
+ * @brief
+ * Allocate and fill `pp_buff_wrapper` object.
+ * Allocate memory as per `arg.size` (CRONO_CONTIG_BUFFER_INFO*).
+ * Caller needs to `copy_to_user` to `arg` the buffer info
+ * (pp_buff_wrapper.buff_info).
+ * `pp_buff_wrapper` should be freed using 'crono_kvfree' to clean memory .
+ *
+ * @param filp
+ * @param arg
+ * `CRONO_CONTIG_BUFFER_INFO*`, to copy the buffer info from and address to.
+ * `.addr` has the user space memory address.
+ * @param pp_buff_wrapper
+ * @return int
+ */
 static int _crono_init_contig_buff_wrapper(
     struct file *filp, unsigned long arg,
     CRONO_CONTIG_BUFFER_INFO_WRAPPER **pp_buff_wrapper) {
@@ -1427,6 +1444,8 @@ static int _crono_init_contig_buff_wrapper(
         }
 
         // Allocate and initialize `buff_wrapper`
+        // Should be freed using 'crono_kvfree', e.g. after any call to
+        // `_crono_release_buffxyz` family.
         *pp_buff_wrapper = buff_wrapper =
             kmalloc(sizeof(CRONO_CONTIG_BUFFER_INFO_WRAPPER), GFP_KERNEL);
         if (NULL == buff_wrapper) {
@@ -1435,19 +1454,29 @@ static int _crono_init_contig_buff_wrapper(
         }
         buff_wrapper->ntrn.bwt = BWT_CONTIG;
         buff_wrapper->ntrn.app_pid = task_pid_nr(current);
-        buff_wrapper->dma_handle = (dma_addr_t)NULL;
-        buff_wrapper->kernel_buff = NULL;
+
+        // Lock the memory from user space to kernel space to get the needed
+        // memory size
+        if (copy_from_user(&(buff_wrapper->buff_info), (void __user *)arg,
+                           sizeof(CRONO_CONTIG_BUFFER_INFO))) {
+                pr_err("Error copying user data");
+                ret = -EFAULT;
+                goto func_err;
+        }
 
         // Get device pointer in internal structure
         ret = _crono_get_dev_from_filp(filp, &(buff_wrapper->ntrn.devp));
         if (ret != CRONO_SUCCESS) {
-                return -EIO;
+                ret = -EIO;
+                goto func_err;
         }
 
-        ret = dma_set_mask_and_coherent(&buff_wrapper->ntrn.devp->dev, DMA_BIT_MASK(64));
+        ret = dma_set_mask_and_coherent(&buff_wrapper->ntrn.devp->dev,
+                                        DMA_BIT_MASK(64));
         if (ret) {
-                pr_err("Error seting mask: %d", ret);
-                return -EIO;
+                pr_err("Error setting mask: %d", ret);
+                ret = -EIO;
+                goto func_err;
         }
 
         // Allocate contiguous memory in kernel space
@@ -1457,14 +1486,21 @@ static int _crono_init_contig_buff_wrapper(
         if (buff_wrapper->kernel_buff == NULL) {
                 // Just null, no global error setting, check `dmsg` if you
                 // need any details
-                return -ENOMEM; // Or appropriate error
+                pr_err("Error allocating memory of size: %zu, check dmsg",
+                       buff_wrapper->buff_info.size);
+                ret = -ENOMEM; // Or appropriate error
+                goto func_err;
         }
+
+        // Set the memory address to be returned to user space to use it
+        buff_wrapper->buff_info.addr = buff_wrapper->dma_handle;
 
         // Since the buffer is kernel-space address returned by
         // dma_alloc_coherent. copy_to_user takes care of copying the data from
         // the kernel space to the user space safely, dealing with the user
-        // space memory as needed (including any necessary fault handling). You
-        // do not need to manually pin the user pages.
+        // space memory as needed (including any necessary fault handling).
+        // Caller to call `copy_to_user` for `buff_info` (including `.addr`
+        // set).
 
         // Add the buffer to list
         buff_wrapper->buff_info.id = contig_buff_wrappers_new_id;
@@ -1477,6 +1513,10 @@ static int _crono_init_contig_buff_wrapper(
         sg_buff_wrappers_new_id++;
         _crono_debug_list_wrappers();
 
+        return ret;
+
+func_err:
+        crono_kvfree(buff_wrapper);
         return ret;
 }
 
@@ -1492,17 +1532,23 @@ static int _crono_miscdev_ioctl_lock_contig_buffer(struct file *filp,
             (ret = _crono_init_contig_buff_wrapper(filp, arg, &bw))) {
                 return ret;
         }
-        if (copy_to_user((dma_addr_t __user *)bw->buff_info.addr,
-                         &(bw->dma_handle), bw->buff_info.size)) {
+
+        // Copy back all data to userspace memory, including address
+        // of the allocated memory
+        if (copy_to_user((void __user *)arg, &(buff_wrapper->buff_info),
+                         sizeof(CRONO_CONTIG_BUFFER_INFO))) {
+                pr_err("Error copying buffer information back to user space");
                 ret = -EFAULT;
                 goto lock_err;
         }
 
         // Cleanup
+        pr_debug("Done locking contiguous buffer");
         return CRONO_SUCCESS;
 
 lock_err:
         _crono_release_buff_wrapper(bw);
+        crono_kvfree(bw);
         return ret;
 }
 
@@ -1547,13 +1593,13 @@ static int _crono_miscdev_ioctl_unlock_contig_buffer(struct file *filp,
         // Clean up buffer memory allocated in the kernel module
         ret = _crono_release_buff_wrapper(found_buff_wrapper);
 
+        // Free the wrapper after all members cleanup is done
+        kvfree(found_buff_wrapper);
+
         // Copy back just to obey DMA APIs rules
         if (copy_to_user((void __user *)arg, &wrapper_id, sizeof(int))) {
                 ret = -EFAULT;
         }
-
-        // Free the wrapper after all members cleanup is done
-        kvfree(found_buff_wrapper);
 
         return ret;
 }

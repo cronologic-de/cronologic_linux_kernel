@@ -87,7 +87,7 @@ static int _crono_miscdev_ioctl_lock_sg_buffer(struct file *filp,
  * @brief
  *
  * @param filp
- * @param arg is a valid `CRONO_KERNEL_DMA_CONTIG`
+ * @param arg is an address of a valid `CRONO_CONTIG_BUFFER_INFO`
  * @return int
  */
 static int _crono_miscdev_ioctl_lock_contig_buffer(struct file *filp,
