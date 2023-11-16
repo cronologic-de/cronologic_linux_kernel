@@ -1535,7 +1535,7 @@ static int _crono_miscdev_ioctl_lock_contig_buffer(struct file *filp,
 
         // Copy back all data to userspace memory, including address
         // of the allocated memory
-        if (copy_to_user((void __user *)arg, &(buff_wrapper->buff_info),
+        if (copy_to_user((void __user *)arg, &(bw->buff_info),
                          sizeof(CRONO_CONTIG_BUFFER_INFO))) {
                 pr_err("Error copying buffer information back to user space");
                 ret = -EFAULT;
