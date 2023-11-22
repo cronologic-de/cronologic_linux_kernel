@@ -293,23 +293,23 @@ static long crono_miscdev_ioctl(struct file *filp, unsigned int cmd,
                                 unsigned long arg) {
         int ret = CRONO_SUCCESS;
 
-        pr_debug("ioctl is called for command <%d>, PID <%d>", cmd,
+        pr_debug("ioctl is called for command <0x%x>, PID <%d>", cmd,
                  task_pid_nr(current));
 
         switch (cmd) {
-        case IOCTL_CRONO_LOCK_BUFFER:
+        case IOCTL_CRONO_LOCK_BUFFER: // 0xc0086300
                 ret = _crono_miscdev_ioctl_lock_sg_buffer(filp, arg);
                 break;
-        case IOCTL_CRONO_UNLOCK_BUFFER:
+        case IOCTL_CRONO_UNLOCK_BUFFER: // 0xc0086301
                 ret = _crono_miscdev_ioctl_unlock_sg_buffer(filp, arg);
                 break;
-        case IOCTL_CRONO_CLEANUP_SETUP:
+        case IOCTL_CRONO_CLEANUP_SETUP: // 0xc0086302
                 ret = _crono_miscdev_ioctl_cleanup_setup(filp, arg);
                 break;
-        case IOCTL_CRONO_LOCK_CONTIG_BUFFER:
+        case IOCTL_CRONO_LOCK_CONTIG_BUFFER: // 0xc0086303
                 ret = _crono_miscdev_ioctl_lock_contig_buffer(filp, arg);
                 break;
-        case IOCTL_CRONO_UNLOCK_CONTIG_BUFFER:
+        case IOCTL_CRONO_UNLOCK_CONTIG_BUFFER: // 0xc0086304
                 ret = _crono_miscdev_ioctl_unlock_contig_buffer(filp, arg);
                 break;
         default:
@@ -933,7 +933,8 @@ _crono_release_contig_buff_wrapper(CRONO_CONTIG_BUFFER_INFO_WRAPPER *bw) {
         PR_DEBUG_BW_INFO("Releasing contiguous buffer:", bw);
 
         pr_debug("Wrapper<%d>: Cleanup kernel memory...", bw->buff_info.id);
-        dma_free_coherent(NULL, bw->buff_info.size, bw->kernel_buff,
+        dma_free_coherent(&bw->ntrn.devp->dev, bw->buff_info.size,
+                          bw->kernel_buff,
                           bw->dma_handle /* = bw->buff_info.addr*/);
         pr_debug("Done cleanup Wrapper<%d> kernel memory.", bw->buff_info.id);
 
@@ -1467,6 +1468,7 @@ static int _crono_init_contig_buff_wrapper(
         // Get device pointer in internal structure
         ret = _crono_get_dev_from_filp(filp, &(buff_wrapper->ntrn.devp));
         if (ret != CRONO_SUCCESS) {
+                pr_err("Error getting dev");
                 ret = -EIO;
                 goto func_err;
         }
@@ -1480,9 +1482,11 @@ static int _crono_init_contig_buff_wrapper(
         }
 
         // Allocate contiguous memory in kernel space
-        buff_wrapper->kernel_buff =
-            dma_alloc_coherent(NULL, buff_wrapper->buff_info.size,
-                               &(buff_wrapper->dma_handle), GFP_KERNEL);
+        pr_debug("Allocating contiguous buffer of size <%ld>",
+                 buff_wrapper->buff_info.size);
+        buff_wrapper->kernel_buff = dma_alloc_coherent(
+            &(buff_wrapper->ntrn.devp->dev), buff_wrapper->buff_info.size,
+            &(buff_wrapper->dma_handle), GFP_KERNEL);
         if (buff_wrapper->kernel_buff == NULL) {
                 // Just null, no global error setting, check `dmsg` if you
                 // need any details
@@ -1491,9 +1495,11 @@ static int _crono_init_contig_buff_wrapper(
                 ret = -ENOMEM; // Or appropriate error
                 goto func_err;
         }
+        pr_debug("Allocated buffer address: <0x%p>, handle: <%llu>",
+                 buff_wrapper->kernel_buff, buff_wrapper->dma_handle);
 
         // Set the memory address to be returned to user space to use it
-        buff_wrapper->buff_info.addr = buff_wrapper->dma_handle;
+        buff_wrapper->buff_info.addr = (void *)buff_wrapper->dma_handle;
 
         // Since the buffer is kernel-space address returned by
         // dma_alloc_coherent. copy_to_user takes care of copying the data from
@@ -1510,7 +1516,7 @@ static int _crono_init_contig_buff_wrapper(
                  "<%ld>, id <%d>",
                  buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
                  buff_wrapper->buff_info.id);
-        sg_buff_wrappers_new_id++;
+        contig_buff_wrappers_new_id++;
         _crono_debug_list_wrappers();
 
         return ret;
