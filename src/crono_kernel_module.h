@@ -153,9 +153,6 @@ typedef struct {
         CRONO_BUFFER_INFO_WRAPPER_INTERNAL ntrn;
 
         CRONO_CONTIG_BUFFER_INFO buff_info;
-
-        void *kernel_buff;
-        dma_addr_t dma_handle;
 } CRONO_CONTIG_BUFFER_INFO_WRAPPER;
 
 /**

@@ -39,7 +39,7 @@ typedef struct {
                          // with kernel versions earlier than 5.6
         uint32_t pages_count; // Count pages in `pages`
 
-        // Kernel Information
+        // Kernel internal information
         int id; // Internal kernel ID of the buffer
 } CRONO_SG_BUFFER_INFO;
 
@@ -48,10 +48,12 @@ typedef struct {
  * Buffer info communicated with user space for contiguous memory
  */
 typedef struct {
-        void *addr;  // Physical address of buffer, in userspace
         size_t size; // Size of the buffer in bytes.
 
-        // Kernel Information
+        void *pUserAddr; // Processor's (kernel) virtual address space
+        uint64_t addr; // DMA (dma_addr_t Pysical) address base of the region, dma_handle
+
+        // Kernel internal information
         int id; // Internal kernel ID of the buffer
 } CRONO_CONTIG_BUFFER_INFO;
 

@@ -14,7 +14,7 @@ MODULE_VERSION("1.0.3");
 
 #define PR_DEBUG_BW_INFO(prefix, bw)                                           \
         pr_debug("%s wrapper id: <%d>, address <0x%p>, size <%ld>, PID <%d>",  \
-                 prefix, bw->buff_info.id, bw->buff_info.addr,                 \
+                 prefix, bw->buff_info.id, (void *)bw->buff_info.addr,         \
                  bw->buff_info.size, bw->ntrn.app_pid);
 
 // `CRONO_KERNEL_MODE` must be defined indicating the code runs for driver.
@@ -934,8 +934,8 @@ _crono_release_contig_buff_wrapper(CRONO_CONTIG_BUFFER_INFO_WRAPPER *bw) {
 
         pr_debug("Wrapper<%d>: Cleanup kernel memory...", bw->buff_info.id);
         dma_free_coherent(&bw->ntrn.devp->dev, bw->buff_info.size,
-                          bw->kernel_buff,
-                          bw->dma_handle /* = bw->buff_info.addr*/);
+                          bw->buff_info.pUserAddr /*buff*/,
+                          bw->buff_info.addr /*dma_handle*/);
         pr_debug("Done cleanup Wrapper<%d> kernel memory.", bw->buff_info.id);
 
         // Delete the wrapper from the list
@@ -1484,10 +1484,10 @@ static int _crono_init_contig_buff_wrapper(
         // Allocate contiguous memory in kernel space
         pr_debug("Allocating contiguous buffer of size <%ld>",
                  buff_wrapper->buff_info.size);
-        buff_wrapper->kernel_buff = dma_alloc_coherent(
+        buff_wrapper->buff_info.pUserAddr = dma_alloc_coherent(
             &(buff_wrapper->ntrn.devp->dev), buff_wrapper->buff_info.size,
-            &(buff_wrapper->dma_handle), GFP_KERNEL);
-        if (buff_wrapper->kernel_buff == NULL) {
+            &(buff_wrapper->buff_info.addr) /*dma_handle*/, GFP_KERNEL);
+        if (buff_wrapper->buff_info.pUserAddr == NULL) {
                 // Just null, no global error setting, check `dmsg` if you
                 // need any details
                 pr_err("Error allocating memory of size: %zu, check dmsg",
@@ -1496,10 +1496,10 @@ static int _crono_init_contig_buff_wrapper(
                 goto func_err;
         }
         pr_debug("Allocated buffer address: <0x%p>, handle: <%llu>",
-                 buff_wrapper->kernel_buff, buff_wrapper->dma_handle);
-
-        // Set the memory address to be returned to user space to use it
-        buff_wrapper->buff_info.addr = (void *)buff_wrapper->dma_handle;
+                 buff_wrapper->buff_info.pUserAddr,
+                 buff_wrapper->buff_info.addr);
+        // Sample: Allocated buffer address: <0x00000000b065d96f>, handle:
+        // <0x117000000>
 
         // Since the buffer is kernel-space address returned by
         // dma_alloc_coherent. copy_to_user takes care of copying the data from
@@ -1511,9 +1511,8 @@ static int _crono_init_contig_buff_wrapper(
         // Add the buffer to list
         buff_wrapper->buff_info.id = contig_buff_wrappers_new_id;
         list_add(&(buff_wrapper->ntrn.list), &contig_buff_wrappers_head);
-        pr_debug("Added contiguous buffer wrapper to internal list. Address "
-                 "<0x%p>, size "
-                 "<%ld>, id <%d>",
+        pr_debug("Added contiguous buffer wrapper to internal list. "
+                 "Address <%llu>, size <%ld>, id <%d>",
                  buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
                  buff_wrapper->buff_info.id);
         contig_buff_wrappers_new_id++;
