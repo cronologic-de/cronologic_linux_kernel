@@ -1614,7 +1614,6 @@ static int crono_mmap_contig(struct file *file, struct vm_area_struct *vma) {
 
         PR_DEBUG_BW_INFO("remap_pfn_range:", found_buff_wrapper);
         pr_debug("found_buff_wrapper->dma_handle %lld, size %ld \n", found_buff_wrapper->dma_handle, found_buff_wrapper->buff_info.size);
-        return ret; // $$ testing
         ret = remap_pfn_range(
             vma, vma->vm_start, found_buff_wrapper->dma_handle >> PAGE_SHIFT,
             found_buff_wrapper->buff_info.size, vma->vm_page_prot);
