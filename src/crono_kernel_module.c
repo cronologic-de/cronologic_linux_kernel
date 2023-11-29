@@ -1598,14 +1598,15 @@ static int _crono_miscdev_ioctl_unlock_contig_buffer(struct file *filp,
 }
 
 static int crono_mmap_contig(struct file *file, struct vm_area_struct *vma) {
-    // $$$ consider calling mmap with NULL last argument `crono_get_BAR0_mem_addr` or debug it
-        // `mmap` `offset` argument should be aligned on a page boundary, so the
-        // buffer id is sent to `mmap` multiplied by PAGE_SIZE.
-        int bw_id = vma->vm_pgoff / PAGE_SIZE;
+        // `mmap` `offset` (last) argument should be aligned on a page boundary, so the
+        // buffer id is sent to `mmap` multiplied by PAGE_SIZE, however, it's recieved
+        // here divided by PATE_SIZE already 
+        int bw_id = vma->vm_pgoff; 
         int ret = CRONO_SUCCESS;
         CRONO_CONTIG_BUFFER_INFO_WRAPPER *found_buff_wrapper = NULL;
 
         pr_debug("Mapping Buffer Wrapper <%d>, offset: <%lu>", bw_id, vma->vm_pgoff);
+        
         if (CRONO_SUCCESS != get_bw(bw_id, &found_buff_wrapper)) {
                 pr_err("Buffer wrapper <%d> is not found", bw_id);
                 return -EINVAL;
