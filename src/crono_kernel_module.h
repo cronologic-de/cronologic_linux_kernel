@@ -135,9 +135,6 @@ typedef struct {
  */
 typedef struct {
         CRONO_BUFFER_INFO_WRAPPER_INTERNAL ntrn;
-
-        CRONO_SG_BUFFER_INFO buff_info;
-
         void **kernel_pages; // Array of pointers to kernel page `page`. Needed
                              // to be cached for `unpin_user_pages`.
         void *sgt; // Scatter/Gather Table that holds the pinned pages.
@@ -147,12 +144,17 @@ typedef struct {
         size_t pinned_size;        // Actual size pinned of the buffer in bytes.
         uint32_t pinned_pages_nr; // Number of actual pages pinned, needed to be
                                   // known if pin failed.
+
+        CRONO_SG_BUFFER_INFO buff_info;
+
 } CRONO_SG_BUFFER_INFO_WRAPPER;
 
 typedef struct {
         CRONO_BUFFER_INFO_WRAPPER_INTERNAL ntrn;
+        dma_addr_t dma_handle; 
 
         CRONO_CONTIG_BUFFER_INFO buff_info;
+
 } CRONO_CONTIG_BUFFER_INFO_WRAPPER;
 
 /**

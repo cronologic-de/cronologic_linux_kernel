@@ -50,8 +50,9 @@ typedef struct {
 typedef struct {
         size_t size; // Size of the buffer in bytes.
 
-        void *pUserAddr; // Processor's (kernel) virtual address space
-        uint64_t addr; // DMA (dma_addr_t Pysical) address base of the region, dma_handle
+        void *addr; // Processor's (kernel) virtual address space
+        void *pUserAddr;
+        uint64_t dma_handle;
 
         // Kernel internal information
         int id; // Internal kernel ID of the buffer
