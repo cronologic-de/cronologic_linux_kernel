@@ -1614,8 +1614,13 @@ static int crono_mmap_contig(struct file *file, struct vm_area_struct *vma) {
 
         PR_DEBUG_BW_INFO("remap_pfn_range:", found_buff_wrapper);
         pr_debug("found_buff_wrapper->dma_handle %lld, size %ld \n", found_buff_wrapper->dma_handle, found_buff_wrapper->buff_info.size);
+	    uint32_t *data = (uint32_t*) found_buff_wrapper->buff_info.addr;
+	    data[0] = 0x1234567;
+	    data[1] = 0x89ABDEF0;
+    	void *virttophys = virt_to_phys(found_buff_wrapper->buff_info.addr);
+        pr_debug("found_buff_wrapper->dma_handle %lld, virt_to_phys %lld \n", found_buff_wrapper->dma_handle, virttophys);
         ret = remap_pfn_range(
-            vma, vma->vm_start, found_buff_wrapper->dma_handle >> PAGE_SHIFT,
+			      vma, vma->vm_start, ((uint64_t) virttophys) >> PAGE_SHIFT,
             found_buff_wrapper->buff_info.size, vma->vm_page_prot);
         pr_debug("Mapping Buffer Wrapper <%d> returned <%d>", bw_id, ret);
         return ret;
