@@ -6,7 +6,7 @@
 //
 MODULE_DESCRIPTION("cronologic PCI driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0.3");
+MODULE_VERSION("1.1.0");
 
 #ifndef CRONO_KERNEL_MODE
 #pragma message("CRONO_KERNEL_MODE must be defined in the kernel module")
@@ -194,7 +194,7 @@ static int crono_driver_probe(struct pci_dev *dev,
         }
 
         // Set DMA Mask
-        // Since crono devices can all handle full 64 bit address as DMA source
+        // Since SG crono devices can all handle full 64 bit address as DMA source
         // and destination, we need to set 64-bit mask to avoid using `swiotlb`
         // by linux when calling `dma_map_sg`.
         ret = dma_set_mask(&dev->dev, DMA_BIT_MASK(64));
@@ -1478,7 +1478,7 @@ static int _crono_init_contig_buff_wrapper(
         }
 
         ret = dma_set_mask_and_coherent(&buff_wrapper->ntrn.devp->dev,
-                                        DMA_BIT_MASK(64));
+                                        DMA_BIT_MASK(32));
         if (ret) {
                 pr_err("Error setting mask: %d", ret);
                 ret = -EIO;
@@ -1614,11 +1614,16 @@ static int crono_mmap_contig(struct file *file, struct vm_area_struct *vma) {
 
         PR_DEBUG_BW_INFO("remap_pfn_range:", found_buff_wrapper);
         pr_debug("found_buff_wrapper->dma_handle %lld, size %ld \n", found_buff_wrapper->dma_handle, found_buff_wrapper->buff_info.size);
-	    uint32_t *data = (uint32_t*) found_buff_wrapper->buff_info.addr;
-	    data[0] = 0x1234567;
-	    data[1] = 0x89ABDEF0;
-    	void *virttophys = virt_to_phys(found_buff_wrapper->buff_info.addr);
-        pr_debug("found_buff_wrapper->dma_handle %lld, virt_to_phys %lld \n", found_buff_wrapper->dma_handle, virttophys);
+
+	uint32_t *data = (uint32_t*) found_buff_wrapper->buff_info.addr;
+	// for debugging fill buffer with expected data
+	data[0] = 0x1234567;
+	data[1] = 0x89ABDEF0;
+	void *virttophys = virt_to_phys(found_buff_wrapper->buff_info.addr);
+
+        pr_debug("found_buff_wrapper->dma_handle %llx, virt_to_phys %llx, addr %llx \n", found_buff_wrapper->dma_handle, virttophys, found_buff_wrapper->buff_info.addr);
+	// we are using pgoff as a buffer index only
+	vma->vm_pgoff = 0;
         ret = remap_pfn_range(
 			      vma, vma->vm_start, ((uint64_t) virttophys) >> PAGE_SHIFT,
             found_buff_wrapper->buff_info.size, vma->vm_page_prot);
