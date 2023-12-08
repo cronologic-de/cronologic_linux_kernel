@@ -82,9 +82,9 @@ static int _crono_get_DBDF_from_dev(struct pci_dev *dev,
 static int _crono_miscdev_ioctl_lock_sg_buffer(struct file *filp,
                                                unsigned long arg);
 
-// $$ documentation
 /**
  * @brief
+ * Lock contiguous buffer for 32bit using dma_alloc_coherent
  *
  * @param filp
  * @param arg is an address of a valid `CRONO_CONTIG_BUFFER_INFO`
@@ -107,7 +107,13 @@ static int _crono_miscdev_ioctl_lock_contig_buffer(struct file *filp,
 static int _crono_miscdev_ioctl_unlock_sg_buffer(struct file *filp,
                                                  unsigned long arg);
 
-// $$ documentation, pass id
+/**
+ * @brief
+ * Lock contiguous buffer for 32bit using dma_alloc_coherent
+ *
+ * @param filp
+ * @param arg is the wrapper id (CRONO_CONTIG_BUFFER_INFO.id) of the buffer.
+ */
 static int _crono_miscdev_ioctl_unlock_contig_buffer(struct file *filp,
                                                      unsigned long arg);
 

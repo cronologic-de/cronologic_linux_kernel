@@ -151,7 +151,7 @@ typedef struct {
 
 typedef struct {
         CRONO_BUFFER_INFO_WRAPPER_INTERNAL ntrn;
-        dma_addr_t dma_handle; 
+        dma_addr_t dma_handle;
 
         CRONO_CONTIG_BUFFER_INFO buff_info;
 

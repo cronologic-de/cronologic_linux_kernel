@@ -444,6 +444,8 @@ Sample code to call `ioctl`:
 }
 ```
 
+* This example is provided for Scatter/Gather memory allocation, however, the driver provides functionality to lock contiguous memory directly as well using `CRONO_CONTIG_BUFFER_INFO` and `IOCTL_CRONO_LOCK_CONTIG_BUFFER`.
+
 ## Miscellaneous Device Driver Naming Convension
 The misc driver name is consutructed following the macro [CRONO_CONSTRUCT_MISCDEV_NAME](https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/include/crono_linux_kernel.h#L80)
 ```C
