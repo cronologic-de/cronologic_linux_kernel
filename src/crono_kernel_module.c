@@ -194,9 +194,9 @@ static int crono_driver_probe(struct pci_dev *dev,
         }
 
         // Set DMA Mask
-        // Since SG crono devices can all handle full 64 bit address as DMA source
-        // and destination, we need to set 64-bit mask to avoid using `swiotlb`
-        // by linux when calling `dma_map_sg`.
+        // Since SG crono devices can all handle full 64 bit address as DMA
+        // source and destination, we need to set 64-bit mask to avoid using
+        // `swiotlb` by linux when calling `dma_map_sg`.
         ret = dma_set_mask(&dev->dev, DMA_BIT_MASK(64));
         if (ret != CRONO_SUCCESS) {
                 pr_err("Device cannot perform DMA properly on this platform, "
@@ -1598,36 +1598,32 @@ static int _crono_miscdev_ioctl_unlock_contig_buffer(struct file *filp,
 }
 
 static int crono_mmap_contig(struct file *file, struct vm_area_struct *vma) {
-        // `mmap` `offset` (last) argument should be aligned on a page boundary, so the
-        // buffer id is sent to `mmap` multiplied by PAGE_SIZE, however, it's recieved
-        // here divided by PATE_SIZE already 
-        int bw_id = vma->vm_pgoff; 
+        // `mmap` `offset` (last) argument should be aligned on a page boundary,
+        // so the buffer id is sent to `mmap` multiplied by PAGE_SIZE, however,
+        // it's recieved here divided by PATE_SIZE already
+        int bw_id = vma->vm_pgoff;
         int ret = CRONO_SUCCESS;
+        phys_addr_t virttophys;
         CRONO_CONTIG_BUFFER_INFO_WRAPPER *found_buff_wrapper = NULL;
 
-        pr_debug("Mapping Buffer Wrapper <%d>, offset: <%lu>", bw_id, vma->vm_pgoff);
-        
+        pr_debug("Mapping Buffer Wrapper <%d>, offset: <%lu>", bw_id,
+                 vma->vm_pgoff);
+
         if (CRONO_SUCCESS != get_bw(bw_id, &found_buff_wrapper)) {
                 pr_err("Buffer wrapper <%d> is not found", bw_id);
                 return -EINVAL;
         }
 
-        PR_DEBUG_BW_INFO("remap_pfn_range:", found_buff_wrapper);
-        pr_debug("found_buff_wrapper->dma_handle %lld, size %ld \n", found_buff_wrapper->dma_handle, found_buff_wrapper->buff_info.size);
+        virttophys = virt_to_phys(found_buff_wrapper->buff_info.addr);
+        pr_debug("virt_to_phys from 0x%p to 0x%llx",
+                 found_buff_wrapper->buff_info.addr, virttophys);
 
-	uint32_t *data = (uint32_t*) found_buff_wrapper->buff_info.addr;
-	// for debugging fill buffer with expected data
-	data[0] = 0x1234567;
-	data[1] = 0x89ABDEF0;
-	void *virttophys = virt_to_phys(found_buff_wrapper->buff_info.addr);
-
-        pr_debug("found_buff_wrapper->dma_handle %llx, virt_to_phys %llx, addr %llx \n", found_buff_wrapper->dma_handle, virttophys, found_buff_wrapper->buff_info.addr);
-	// we are using pgoff as a buffer index only
-	vma->vm_pgoff = 0;
+        // we are using pgoff as a buffer index only
+        vma->vm_pgoff = 0;
         ret = remap_pfn_range(
-			      vma, vma->vm_start, ((uint64_t) virttophys) >> PAGE_SHIFT,
+            vma, vma->vm_start, virttophys >> PAGE_SHIFT,
             found_buff_wrapper->buff_info.size, vma->vm_page_prot);
-        pr_debug("Mapping Buffer Wrapper <%d> returned <%d>", bw_id, ret);
+        pr_debug("Mapping Buffer Wrapper <%d> returned code <%d>", bw_id, ret);
         return ret;
 }
 
@@ -1637,8 +1633,7 @@ static int get_bw(int bw_id, CRONO_CONTIG_BUFFER_INFO_WRAPPER **ppBW) {
         CRONO_CONTIG_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
         struct list_head *pos, *n;
 
-        pr_debug("$$ Getting bw <%d>", bw_id);
-       // Find the related buffer_wrapper in the list
+        // Find the related buffer_wrapper in the list
         _crono_debug_list_wrappers();
         list_for_each_safe(pos, n, &contig_buff_wrappers_head) {
                 temp_buff_wrapper = list_entry(
@@ -1656,6 +1651,5 @@ static int get_bw(int bw_id, CRONO_CONTIG_BUFFER_INFO_WRAPPER **ppBW) {
                          found_buff_wrapper->buff_info.id);
         }
         *ppBW = found_buff_wrapper;
-        pr_debug("$$ returning bw <%d>", ret);
         return ret;
 }
