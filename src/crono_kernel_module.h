@@ -3,6 +3,7 @@
 // _____________________________________________________________________________
 
 #include <asm/unistd.h>
+#include <linux/dma-mapping.h>
 #include <linux/fcntl.h>
 #include <linux/kernel.h>
 #include <linux/miscdevice.h>
@@ -116,15 +117,24 @@ static int crono_driver_probe(struct pci_dev *dev,
                               const struct pci_device_id *id);
 
 typedef uint64_t DMA_ADDR;
+
+// Buffer Wrapper Type
+#define BWT_SG 1
+#define BWT_CONTIG 2
+typedef struct {
+        int bwt;
+        struct list_head list; // Linux list node info
+        struct pci_dev *devp;  // Owner device
+        int app_pid; // Process ID of the userspace application that owns the
+                     // buffer
+} CRONO_BUFFER_INFO_WRAPPER_INTERNAL;
+
 /**
  * Internal DMA Buffer Information Wrapper, which wraps `buff_info1` object,
  * adding all members needed internally by the module.
  */
 typedef struct {
-        struct list_head list; // Linux list node info
-
-        CRONO_BUFFER_INFO buff_info;
-
+        CRONO_BUFFER_INFO_WRAPPER_INTERNAL ntrn;
         void **kernel_pages; // Array of pointers to kernel page `page`. Needed
                              // to be cached for `unpin_user_pages`.
         void *sgt; // Scatter/Gather Table that holds the pinned pages.
@@ -134,11 +144,18 @@ typedef struct {
         size_t pinned_size;        // Actual size pinned of the buffer in bytes.
         uint32_t pinned_pages_nr; // Number of actual pages pinned, needed to be
                                   // known if pin failed.
-        struct pci_dev *devp;     // Owner device
-        int app_pid; // Process ID of the userspace application that owns the
-                     // buffer
 
-} CRONO_BUFFER_INFO_WRAPPER;
+        CRONO_SG_BUFFER_INFO buff_info;
+
+} CRONO_SG_BUFFER_INFO_WRAPPER;
+
+typedef struct {
+        CRONO_BUFFER_INFO_WRAPPER_INTERNAL ntrn;
+        dma_addr_t dma_handle;
+
+        CRONO_CONTIG_BUFFER_INFO buff_info;
+
+} CRONO_CONTIG_BUFFER_INFO_WRAPPER;
 
 /**
  * Function displays information about the list of wrappers found in list

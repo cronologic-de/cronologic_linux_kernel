@@ -6,11 +6,16 @@
 //
 MODULE_DESCRIPTION("cronologic PCI driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0.3");
+MODULE_VERSION("1.1.0");
 
 #ifndef CRONO_KERNEL_MODE
 #pragma message("CRONO_KERNEL_MODE must be defined in the kernel module")
 #endif
+
+#define PR_DEBUG_BW_INFO(prefix, bw)                                           \
+        pr_debug("%s wrapper id: <%d>, address <0x%p>, size <%ld>, PID <%d>",  \
+                 prefix, bw->buff_info.id, (void *)bw->buff_info.addr,         \
+                 bw->buff_info.size, bw->ntrn.app_pid);
 
 // `CRONO_KERNEL_MODE` must be defined indicating the code runs for driver.
 // #define CRONO_KERNEL_MODE, no need to define it here as it's passed in
@@ -27,6 +32,8 @@ static struct crono_miscdev crono_miscdev_pool[CRONO_MAX_MSCDEV_COUNT];
 static uint32_t crono_miscdev_pool_new_index = 0;
 #define RESET_CRONO_MISCDEV(pcrono_miscdev)                                    \
         memset(pcrono_miscdev, 0, sizeof(struct crono_miscdev));
+static int crono_mmap_contig(struct file *file, struct vm_area_struct *vma);
+static int get_bw(int bw_id, CRONO_CONTIG_BUFFER_INFO_WRAPPER **ppBW);
 
 static const struct pci_device_id crono_pci_device_ids[] = {
     // Get all devices of cronologic Vendor ID
@@ -52,18 +59,23 @@ static struct file_operations crono_miscdev_fops = {
     .release = crono_miscdev_release,
 
     .unlocked_ioctl = crono_miscdev_ioctl,
+
+    .mmap = crono_mmap_contig,
 };
 
 // DMA Buffer Information Wrappers List Variables and Functions
 /**
  * @brief Head of list of all locked Buffer Wrappers
+ * Two lists, one for each buffer type as every type has its own size and specs.
  */
-struct list_head buff_wrappers_head;
+struct list_head sg_buff_wrappers_head;
+struct list_head contig_buff_wrappers_head;
 
 /**
- * @brief Count of Buffer Wrappers in 'buff_wrappers_head' list
+ * @brief Count of Buffer Wrappers in buffer wrappers list
  */
-static int buff_wrappers_new_id = 0;
+static int sg_buff_wrappers_new_id = 0;
+static int contig_buff_wrappers_new_id = 0;
 
 // _____________________________________________________________________________
 // init & exit
@@ -78,7 +90,8 @@ static int __init crono_driver_init(void) {
         // Should be done before calling `pci_register_driver` which will probe
         // the devices and calls `crono_driver_probe` that uses those global
         // variables.
-        INIT_LIST_HEAD(&buff_wrappers_head);
+        INIT_LIST_HEAD(&sg_buff_wrappers_head);
+        INIT_LIST_HEAD(&contig_buff_wrappers_head);
         memset(crono_miscdev_pool, 0,
                sizeof(struct crono_miscdev) * CRONO_MAX_MSCDEV_COUNT);
 
@@ -181,10 +194,10 @@ static int crono_driver_probe(struct pci_dev *dev,
         }
 
         // Set DMA Mask
-        // Since crono devices can all handle full 64 bit address as DMA source
-        // and destination, we need to set 64-bit mask to avoid using `swiotlb`
-        // by linux when calling `dma_map_sg`.
-        ret = dma_set_mask(&dev->dev, DMA_BIT_MASK(64));        
+        // Since SG crono devices can all handle full 64 bit address as DMA
+        // source and destination, we need to set 64-bit mask to avoid using
+        // `swiotlb` by linux when calling `dma_map_sg`.
+        ret = dma_set_mask(&dev->dev, DMA_BIT_MASK(64));
         if (ret != CRONO_SUCCESS) {
                 pr_err("Device cannot perform DMA properly on this platform, "
                        "error <%d>",
@@ -284,18 +297,24 @@ static long crono_miscdev_ioctl(struct file *filp, unsigned int cmd,
                                 unsigned long arg) {
         int ret = CRONO_SUCCESS;
 
-        pr_debug("ioctl is called for command <%d>, PID <%d>", cmd,
+        pr_debug("ioctl is called for command <0x%x>, PID <%d>", cmd,
                  task_pid_nr(current));
 
         switch (cmd) {
-        case IOCTL_CRONO_LOCK_BUFFER:
-                ret = _crono_miscdev_ioctl_lock_buffer(filp, arg);
+        case IOCTL_CRONO_LOCK_BUFFER: // 0xc0086300
+                ret = _crono_miscdev_ioctl_lock_sg_buffer(filp, arg);
                 break;
-        case IOCTL_CRONO_UNLOCK_BUFFER:
-                ret = _crono_miscdev_ioctl_unlock_buffer(filp, arg);
+        case IOCTL_CRONO_UNLOCK_BUFFER: // 0xc0086301
+                ret = _crono_miscdev_ioctl_unlock_sg_buffer(filp, arg);
                 break;
-        case IOCTL_CRONO_CLEANUP_SETUP:
+        case IOCTL_CRONO_CLEANUP_SETUP: // 0xc0086302
                 ret = _crono_miscdev_ioctl_cleanup_setup(filp, arg);
+                break;
+        case IOCTL_CRONO_LOCK_CONTIG_BUFFER: // 0xc0086303
+                ret = _crono_miscdev_ioctl_lock_contig_buffer(filp, arg);
+                break;
+        case IOCTL_CRONO_UNLOCK_CONTIG_BUFFER: // 0xc0086304
+                ret = _crono_miscdev_ioctl_unlock_contig_buffer(filp, arg);
                 break;
         default:
                 pr_err("Error, unsupported ioctl command <%d>", cmd);
@@ -305,10 +324,26 @@ static long crono_miscdev_ioctl(struct file *filp, unsigned int cmd,
         return ret;
 }
 
-static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
-                                            unsigned long arg) {
+/**
+ * @brief
+ * - Allocate memory, pin it.
+ * - Create a wrapper (`CRONO_SG_BUFFER_INFO_WRAPPER`), fill its `buff_info`
+ *   from `arg` (`CRONO_SG_BUFFER_INFO`) and set its `id` (unique in module),
+ *   then, add wrapper to list `sg_buff_wrappers_head`.
+ *
+ * Unlock function receives `id` of `buff_info` to unlock it.
+ *
+ * @param filp
+ * Of the device
+ * @param arg
+ * `CRONO_SG_BUFFER_INFO`
+ * @return int
+ * `CRONO_SUCCESS` or error code.
+ */
+static int _crono_miscdev_ioctl_lock_sg_buffer(struct file *filp,
+                                               unsigned long arg) {
         int ret;
-        CRONO_BUFFER_INFO_WRAPPER *buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper = NULL;
 #ifdef CRONO_DEBUG_ENABLED
         int ipage, loop_count;
 #endif
@@ -316,7 +351,7 @@ static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
 
         // Validate, initialize, and lock variables
         if (CRONO_SUCCESS !=
-            (ret = _crono_init_buff_wrapper(filp, arg, &buff_wrapper))) {
+            (ret = _crono_init_sg_buff_wrapper(filp, arg, &buff_wrapper))) {
                 return ret;
         }
 
@@ -340,15 +375,15 @@ static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
                          buff_wrapper->userspace_pages,
                          buff_wrapper->buff_info.pages_count *
                              sizeof(DMA_ADDR))) {
-                pr_err("Error copying back pages addresses");
+                pr_err("Error copying pages addresses back to user space");
                 ret = -EFAULT;
                 goto lock_err;
         }
 
         // Copy back all data to userspace memory
         if (copy_to_user((void __user *)arg, &(buff_wrapper->buff_info),
-                         sizeof(CRONO_BUFFER_INFO))) {
-                pr_err("Error copying back buffer information");
+                         sizeof(CRONO_SG_BUFFER_INFO))) {
+                pr_err("Error copying buffer information back to user space");
                 ret = -EFAULT;
                 goto lock_err;
         }
@@ -377,7 +412,7 @@ lock_err:
 
 static int
 _crono_miscdev_ioctl_pin_buffer(struct file *filp,
-                                CRONO_BUFFER_INFO_WRAPPER *buff_wrapper,
+                                CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper,
                                 unsigned long nr_per_call) {
 
         unsigned long start_addr_to_pin; // Start address in pBuf to be pinned
@@ -507,19 +542,21 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
 
         // Old way to fill in the `userspace_pages` Page Array, don't fill it
         // now it will be filled later on from sg
-        // for (page_index = 0; page_index < buff_wrapper->buff_info.pages_count;
+        // for (page_index = 0; page_index <
+        // buff_wrapper->buff_info.pages_count;
         //      page_index++) {
         //         buff_wrapper->userspace_pages[page_index] =
         //             PFN_PHYS(page_to_pfn(
-        //                 (struct page *)buff_wrapper->kernel_pages[page_index]));
-// #ifdef DEBUG
-//                 if (page_index < 5)
-//                         // Log only first 5 pages
-//                         pr_debug("ioctl_pin: Kernel Page <%d> is of "
-//                                  "physical address <0x%llx>",
-//                                  page_index,
-//                                  buff_wrapper->userspace_pages[page_index]);
-// #endif
+        //                 (struct page
+        //                 *)buff_wrapper->kernel_pages[page_index]));
+        // #ifdef DEBUG
+        //                 if (page_index < 5)
+        //                         // Log only first 5 pages
+        //                         pr_debug("ioctl_pin: Kernel Page <%d> is of "
+        //                                  "physical address <0x%llx>",
+        //                                  page_index,
+        //                                  buff_wrapper->userspace_pages[page_index]);
+        // #endif
         // }
 
 #ifndef OLD_KERNEL_FOR_PIN
@@ -538,12 +575,12 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
         return ret;
 }
 
-static int _crono_miscdev_ioctl_unlock_buffer(struct file *filp,
-                                              unsigned long arg) {
+static int _crono_miscdev_ioctl_unlock_sg_buffer(struct file *filp,
+                                                 unsigned long arg) {
         int ret = CRONO_SUCCESS;
         int wrapper_id = -1;
-        CRONO_BUFFER_INFO_WRAPPER *found_buff_wrapper = NULL;
-        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *found_buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
         struct list_head *pos, *n;
 
         // Lock the memory from user space to kernel space
@@ -559,9 +596,9 @@ static int _crono_miscdev_ioctl_unlock_buffer(struct file *filp,
 
         // Find the related buffer_wrapper in the list
         _crono_debug_list_wrappers();
-        list_for_each_safe(pos, n, &buff_wrappers_head) {
+        list_for_each_safe(pos, n, &sg_buff_wrappers_head) {
                 temp_buff_wrapper =
-                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
+                    list_entry(pos, CRONO_SG_BUFFER_INFO_WRAPPER, ntrn.list);
                 if (temp_buff_wrapper->buff_info.id == wrapper_id)
                         found_buff_wrapper = temp_buff_wrapper;
         }
@@ -578,10 +615,9 @@ static int _crono_miscdev_ioctl_unlock_buffer(struct file *filp,
         // Clean up buffer memory allocated in the kernel module
         ret = _crono_release_buff_wrapper(found_buff_wrapper);
 
-        // Copy back just to obey DMA APIs rules, now we have all
-        // information needed in `buff_info`
+        // Copy back just to obey DMA APIs rules
         if (copy_to_user((void __user *)arg, &wrapper_id, sizeof(int))) {
-                return -EFAULT;
+                ret = -EFAULT;
         }
 
         // Free the wrapper after all members cleanup is done
@@ -646,7 +682,7 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
 
 static int
 _crono_miscdev_ioctl_generate_sg(struct file *filp,
-                                 CRONO_BUFFER_INFO_WRAPPER *buff_wrapper) {
+                                 CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper) {
 
         struct pci_dev *devp;
         int ret;
@@ -659,7 +695,7 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
         DWORD dw_mapped_pages_size = 0;
 #endif
         int page_nr = 0;
-        int i = 0 ;
+        int i = 0;
 
         // Validate parameters
         LOGERR_RET_EINVAL_IF_NULL(buff_wrapper->kernel_pages,
@@ -779,18 +815,21 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
                         buff_wrapper->userspace_pages[page_nr] = addr;
                         page_nr++;
                         if (page_nr > buff_wrapper->buff_info.pages_count) {
-                                pr_err("Inconsistent number of pages between sg and buffer, "
-                                        "sg pages count is <%d>, buffer pages count is <%d>",
-                                        page_nr, buff_wrapper->buff_info.pages_count);
+                                pr_err("Inconsistent number of pages between "
+                                       "sg and buffer, "
+                                       "sg pages count is <%d>, buffer pages "
+                                       "count is <%d>",
+                                       page_nr,
+                                       buff_wrapper->buff_info.pages_count);
                         }
-                        len -= 4096;    // Replace by PAGE_SIZE
-                        addr += 4096;   // Replace by PAGE_SIZE
+                        len -= 4096;  // Replace by PAGE_SIZE
+                        addr += 4096; // Replace by PAGE_SIZE
                 }
         }
         if (page_nr != buff_wrapper->buff_info.pages_count) {
                 pr_err("Inconsistent number of pages between sg and buffer, "
-                        "sg pages count is <%d>, buffer pages count is <%d>",
-                        page_nr, buff_wrapper->buff_info.pages_count);
+                       "sg pages count is <%d>, buffer pages count is <%d>",
+                       page_nr, buff_wrapper->buff_info.pages_count);
         }
         pr_debug("Done mapping SG");
 
@@ -798,111 +837,129 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
         return CRONO_SUCCESS;
 }
 
-static int
-_crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *passed_buff_wrapper) {
-
-        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
-        CRONO_BUFFER_INFO_WRAPPER *found_buff_wrapper = NULL;
-        struct list_head *pos, *n;
+/**
+ * @brief
+ * - Delete the wrapper from the list
+ * - Free the wrapper object
+ *
+ * @param bw
+ * Buffer Wrapper, is not valid upon exit, it's freed
+ *
+ * @return int
+ */
+static int _crono_release_sg_buff_wrapper(CRONO_SG_BUFFER_INFO_WRAPPER *bw) {
 #ifdef OLD_KERNEL_FOR_PIN
         int ipage;
 #endif
-
-        if (NULL == passed_buff_wrapper ||
-            NULL == passed_buff_wrapper->kernel_pages) {
-
+        if (NULL == bw || NULL == bw->kernel_pages) {
                 pr_debug("Nothing to clean for the buffer");
                 return CRONO_SUCCESS;
         }
         _crono_debug_list_wrappers();
-        pr_debug("Releasing buffer: wrapper id <%d>, address <0x%p>, size "
-                 "<%ld>, PID <%d>...",
-                 passed_buff_wrapper->buff_info.id,
-                 passed_buff_wrapper->buff_info.addr,
-                 passed_buff_wrapper->buff_info.size,
-                 passed_buff_wrapper->app_pid);
+        PR_DEBUG_BW_INFO("Releasing buffer:", bw);
 
 #ifndef OLD_KERNEL_FOR_PIN
         // Unpin pages
         pr_debug("Wrapper<%d>: Unpinning pages of address <0x%p>, number = "
                  "<%d>...",
-                 passed_buff_wrapper->buff_info.id,
-                 passed_buff_wrapper->kernel_pages,
-                 passed_buff_wrapper->pinned_pages_nr);
-        unpin_user_pages((struct page **)(passed_buff_wrapper->kernel_pages),
-                         passed_buff_wrapper->pinned_pages_nr);
+                 bw->buff_info.id, bw->kernel_pages, bw->pinned_pages_nr);
+        unpin_user_pages((struct page **)(bw->kernel_pages),
+                         bw->pinned_pages_nr);
         pr_debug("Done unpinning pages");
 #else
         pr_debug("Putting pages of address = <%p>, and number = <%d>...",
-                 passed_buff_wrapper->kernel_pages,
-                 passed_buff_wrapper->pinned_pages_nr);
-        for (ipage = 0; ipage < passed_buff_wrapper->pinned_pages_nr; ipage++) {
-                put_page(passed_buff_wrapper->kernel_pages[ipage]);
+                 bw->kernel_pages, bw->pinned_pages_nr);
+        for (ipage = 0; ipage < bw->pinned_pages_nr; ipage++) {
+                put_page(bw->kernel_pages[ipage]);
         }
         pr_debug("Done putting pages");
 #endif
 
-        if (NULL != passed_buff_wrapper->sgt) {
+        if (NULL != bw->sgt) {
                 // Unmap Scatter/Gather list
                 dma_unmap_sg(
-                    &(passed_buff_wrapper->devp->dev),
-                    ((struct sg_table *)passed_buff_wrapper->sgt)->sgl,
-                    ((struct sg_table *)passed_buff_wrapper->sgt)->nents,
-                    DMA_BIDIRECTIONAL);
+                    &(bw->ntrn.devp->dev), ((struct sg_table *)bw->sgt)->sgl,
+                    ((struct sg_table *)bw->sgt)->nents, DMA_BIDIRECTIONAL);
 
                 // Clean allocated memory for Scatter/Gather list
                 pr_debug("Wrapper<%d>: Cleanup SG Table <%p>...",
-                         passed_buff_wrapper->buff_info.id,
-                         passed_buff_wrapper->sgt);
-                sg_free_table(passed_buff_wrapper->sgt);
-                crono_kvfree(passed_buff_wrapper->sgt);
+                         bw->buff_info.id, bw->sgt);
+                sg_free_table(bw->sgt);
+                crono_kvfree(bw->sgt);
                 pr_debug("Done cleanup wrapper <%d> SG Table",
-                         passed_buff_wrapper->buff_info.id);
+                         bw->buff_info.id);
         }
 
         // Clean allocated memory for kernel pages
-        pr_debug("Wrapper<%d>: Cleanup kernel pages <%p>...",
-                 passed_buff_wrapper->buff_info.id,
-                 passed_buff_wrapper->kernel_pages);
-        crono_kvfree(passed_buff_wrapper->kernel_pages);
-        pr_debug("Done cleanup wrapper <%d> kernel pages",
-                 passed_buff_wrapper->buff_info.id);
+        pr_debug("Wrapper<%d>: Cleanup kernel pages <%p>...", bw->buff_info.id,
+                 bw->kernel_pages);
+        crono_kvfree(bw->kernel_pages);
+        pr_debug("Done cleanup wrapper <%d> kernel pages", bw->buff_info.id);
 
         // Clean allocated memory for userspace pages
         pr_debug("Wrapper<%d>: Cleanup userspace pages <%p>...",
-                 passed_buff_wrapper->buff_info.id,
-                 passed_buff_wrapper->userspace_pages);
-        crono_kvfree(passed_buff_wrapper->userspace_pages);
-        pr_debug("Done cleanup wrapper <%d> userspace pages",
-                 passed_buff_wrapper->buff_info.id);
+                 bw->buff_info.id, bw->userspace_pages);
+        crono_kvfree(bw->userspace_pages);
+        pr_debug("Done cleanup wrapper <%d> userspace pages", bw->buff_info.id);
 
         // Delete the wrapper from the list
-        pr_debug("Wrapper<%d>: Deleting from list...",
-                 passed_buff_wrapper->buff_info.id);
-        crono_kvfree(passed_buff_wrapper->userspace_pages);
-        list_for_each_safe(pos, n, &buff_wrappers_head) {
-                temp_buff_wrapper =
-                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
-                if (temp_buff_wrapper->buff_info.id ==
-                    passed_buff_wrapper->buff_info.id) {
-                        found_buff_wrapper = temp_buff_wrapper;
-                        list_del(&(temp_buff_wrapper->list));
-                        pr_debug("Done deleting wrapper <%d> from list",
-                                passed_buff_wrapper->buff_info.id);
-                        // Don't free temp_buff_wrapper here, caller should free
-                        // it. kvfree(temp_buff_wrapper) crashes here.
-                }
-        }
-        if (NULL == found_buff_wrapper) {
-                pr_err("Wrapper<%d>: Not found in wrappers list",
-                       passed_buff_wrapper->buff_info.id);
-        }
+        pr_debug("Wrapper<%d>: Deleting from list...", bw->buff_info.id);
+        list_del(&(bw->ntrn.list));
+        pr_debug("Done deleting wrapper <%d> from list", bw->buff_info.id);
+        // Don't free `bw` here, caller should free it.
+        // kvfree(bw) crashes here.
 
         // Success
-        pr_info("Done releasing buffer: wrapper id <%d>",
-                passed_buff_wrapper->buff_info.id);
+        pr_info("Done releasing buffer: wrapper id <%d>", bw->buff_info.id);
         _crono_debug_list_wrappers();
         return CRONO_SUCCESS;
+}
+
+/**
+ * @brief
+ * - Delete the wrapper from the list
+ * - Free the wrapper object
+ *
+ * @param bw
+ * Is not valid upon exit, it's freed
+ *
+ * @return int
+ */
+static int
+_crono_release_contig_buff_wrapper(CRONO_CONTIG_BUFFER_INFO_WRAPPER *bw) {
+        int ret = CRONO_SUCCESS;
+
+        if (NULL == bw) {
+                pr_debug("Nothing to clean for the buffer");
+                return CRONO_SUCCESS;
+        }
+        _crono_debug_list_wrappers();
+        PR_DEBUG_BW_INFO("Releasing contiguous buffer:", bw);
+
+        pr_debug("Wrapper<%d>: Cleanup kernel memory...", bw->buff_info.id);
+        dma_free_coherent(&bw->ntrn.devp->dev, bw->buff_info.size,
+                          bw->buff_info.addr /*buff*/,
+                          bw->dma_handle /*dma_handle*/);
+        pr_debug("Done cleanup Wrapper<%d> kernel memory.", bw->buff_info.id);
+
+        // Delete the wrapper from the list
+        pr_debug("Wrapper<%d>: Deleting from list...", bw->buff_info.id);
+        list_del(&(bw->ntrn.list));
+        pr_debug("Done deleting wrapper <%d> from list", bw->buff_info.id);
+        // Don't free `bw` here, caller should free it.
+        // kvfree(bw) crashes here.
+
+        return ret;
+}
+
+static int _crono_release_buff_wrapper(void *buff_wrapper) {
+        if (*((int *)buff_wrapper) == BWT_SG) {
+                return _crono_release_sg_buff_wrapper(buff_wrapper);
+        } else if (*((int *)buff_wrapper) == BWT_CONTIG) {
+                return _crono_release_contig_buff_wrapper(buff_wrapper);
+        } else {
+                return -EINVAL;
+        }
 }
 
 // _____________________________________________________________________________
@@ -1065,12 +1122,12 @@ _crono_get_crono_dev_from_inode(struct inode *miscdev_inode,
 }
 
 static int
-_crono_init_buff_wrapper(struct file *filp, unsigned long arg,
-                         CRONO_BUFFER_INFO_WRAPPER **pp_buff_wrapper) {
+_crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
+                            CRONO_SG_BUFFER_INFO_WRAPPER **pp_buff_wrapper) {
 
         int ret = CRONO_SUCCESS;
-        CRONO_BUFFER_INFO_WRAPPER
-        *buff_wrapper = NULL; // To simplify pointer-to-pointer
+        CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper =
+            NULL; // To simplify pointer-to-pointer
 
         if (0 == arg) {
                 pr_err("Invalid parameter `arg` initializing buffer "
@@ -1079,27 +1136,30 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         }
 
         // Allocate and initialize `buff_wrapper`
+        // Should be freed using 'crono_kvfree', e.g. after any call to
+        // `_crono_release_buffxyz` family.
         *pp_buff_wrapper = buff_wrapper =
-            kmalloc(sizeof(CRONO_BUFFER_INFO_WRAPPER), GFP_KERNEL);
+            kmalloc(sizeof(CRONO_SG_BUFFER_INFO_WRAPPER), GFP_KERNEL);
         if (NULL == buff_wrapper) {
                 pr_err("Error allocating DMA internal struct");
                 return -ENOMEM;
         }
+        buff_wrapper->ntrn.bwt = BWT_SG;
         buff_wrapper->kernel_pages = NULL;
         buff_wrapper->userspace_pages = NULL;
         buff_wrapper->pinned_pages_nr = 0;
         buff_wrapper->sgt = NULL;
-        buff_wrapper->app_pid = task_pid_nr(current);
+        buff_wrapper->ntrn.app_pid = task_pid_nr(current);
 
         // Get device pointer in internal structure
-        ret = _crono_get_dev_from_filp(filp, &(buff_wrapper->devp));
+        ret = _crono_get_dev_from_filp(filp, &(buff_wrapper->ntrn.devp));
         if (ret != CRONO_SUCCESS) {
                 goto func_err;
         }
 
-        // Lock the memory from user space to kernel space
+        // Copy buffer information from user space to kernel space
         if (copy_from_user(&(buff_wrapper->buff_info), (void __user *)arg,
-                           sizeof(CRONO_BUFFER_INFO))) {
+                           sizeof(CRONO_SG_BUFFER_INFO))) {
                 pr_err("Error copying user data");
                 ret = -EFAULT;
                 goto func_err;
@@ -1151,13 +1211,11 @@ _crono_init_buff_wrapper(struct file *filp, unsigned long arg,
         }
 
         // Add the buffer to list
-        buff_wrapper->buff_info.id = buff_wrappers_new_id;
-        list_add(&(buff_wrapper->list), &buff_wrappers_head);
-        pr_debug("Added buffer wrapper to internal list. Address <0x%p>, size "
-                 "<%ld>, id <%d>",
-                 buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
-                 buff_wrapper->buff_info.id);
-        buff_wrappers_new_id++;
+        buff_wrapper->buff_info.id = sg_buff_wrappers_new_id;
+        list_add(&(buff_wrapper->ntrn.list), &sg_buff_wrappers_head);
+        PR_DEBUG_BW_INFO("Added buffer wrapper to internal list: ",
+                         buff_wrapper);
+        sg_buff_wrappers_new_id++;
         _crono_debug_list_wrappers();
 
         return ret;
@@ -1170,21 +1228,24 @@ func_err:
 
 static void _crono_debug_list_wrappers(void) {
 #ifdef DEBUG
-        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *temp_sg_buff_wrapper = NULL;
+        CRONO_CONTIG_BUFFER_INFO_WRAPPER *temp_contig_buff_wrapper = NULL;
         bool wrapper_list_is_empty = true;
         struct list_head *pos = NULL, *n = NULL;
 
         pr_debug("Listing wrappers...");
         // List the wrappers in the list
-        list_for_each_safe(pos, n, &buff_wrappers_head) {
+        list_for_each_safe(pos, n, &sg_buff_wrappers_head) {
                 wrapper_list_is_empty = false; // Set the flag
-                temp_buff_wrapper =
-                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
-                pr_debug("- Wrapper<%d>: address <0x%p>, size <%ld>, PID <%d>",
-                         temp_buff_wrapper->buff_info.id,
-                         temp_buff_wrapper->buff_info.addr,
-                         temp_buff_wrapper->buff_info.size,
-                         temp_buff_wrapper->app_pid);
+                temp_sg_buff_wrapper =
+                    list_entry(pos, CRONO_SG_BUFFER_INFO_WRAPPER, ntrn.list);
+                PR_DEBUG_BW_INFO("- Wrapper: ", temp_sg_buff_wrapper);
+        }
+        list_for_each_safe(pos, n, &contig_buff_wrappers_head) {
+                wrapper_list_is_empty = false; // Set the flag
+                temp_contig_buff_wrapper = list_entry(
+                    pos, CRONO_CONTIG_BUFFER_INFO_WRAPPER, ntrn.list);
+                PR_DEBUG_BW_INFO("- Wrapper: ", temp_contig_buff_wrapper);
         }
         if (wrapper_list_is_empty) {
                 pr_debug("Wrappers list is empty");
@@ -1193,20 +1254,34 @@ static void _crono_debug_list_wrappers(void) {
 }
 
 static int _crono_release_buffer_wrappers() {
-
         struct list_head *pos = NULL, *n = NULL;
-        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
+
+        CRONO_SG_BUFFER_INFO_WRAPPER *temp_sg_buff_wrapper = NULL;
+        CRONO_CONTIG_BUFFER_INFO_WRAPPER *temp_contig_buff_wrapper = NULL;
 
         // Clean up all buffer information wrappers and list
         pr_info("Cleanup wrappers list...");
-        list_for_each_safe(pos, n, &buff_wrappers_head) {
-                temp_buff_wrapper =
-                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
-                _crono_release_buff_wrapper(temp_buff_wrapper);
-                crono_kvfree(temp_buff_wrapper);
+
+        // SG Buffer Wrappers
+        list_for_each_safe(pos, n, &sg_buff_wrappers_head) {
+                temp_sg_buff_wrapper =
+                    list_entry(pos, CRONO_SG_BUFFER_INFO_WRAPPER, ntrn.list);
+                _crono_release_buff_wrapper(temp_sg_buff_wrapper);
+                crono_kvfree(temp_sg_buff_wrapper);
                 // Don't list_del(pos); it's deleted in
                 // `_crono_release_buff_wrapper`
         }
+
+        // Contiguous Buffer Wrappers
+        list_for_each_safe(pos, n, &contig_buff_wrappers_head) {
+                temp_contig_buff_wrapper = list_entry(
+                    pos, CRONO_CONTIG_BUFFER_INFO_WRAPPER, ntrn.list);
+                _crono_release_buff_wrapper(temp_contig_buff_wrapper);
+                crono_kvfree(temp_contig_buff_wrapper);
+                // Don't list_del(pos); it's deleted in
+                // `_crono_release_buff_wrapper`
+        }
+
         pr_info("Done cleanup wrappers list");
         _crono_debug_list_wrappers();
 
@@ -1214,26 +1289,42 @@ static int _crono_release_buffer_wrappers() {
 }
 
 static int _crono_release_buffer_wrappers_cur_proc() {
-
         struct list_head *pos = NULL, *n = NULL;
-        CRONO_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
+        CRONO_SG_BUFFER_INFO_WRAPPER *temp_sg_buff_wrapper = NULL;
+        CRONO_CONTIG_BUFFER_INFO_WRAPPER *temp_contig_buff_wrapper = NULL;
         bool no_wrappers_found = true;
         int app_pid = task_pid_nr(current);
 
         // Clean up all buffer information wrappers and list
         pr_debug("Cleanup process PID <%d> buffers wrappers...", app_pid);
         _crono_debug_list_wrappers();
-        list_for_each_safe(pos, n, &buff_wrappers_head) {
-                temp_buff_wrapper =
-                    list_entry(pos, CRONO_BUFFER_INFO_WRAPPER, list);
+
+        // SG Buffer Wrappers
+        list_for_each_safe(pos, n, &sg_buff_wrappers_head) {
+                temp_sg_buff_wrapper =
+                    list_entry(pos, CRONO_SG_BUFFER_INFO_WRAPPER, ntrn.list);
                 // Check if the buffer is allocated from the underlying
                 // process
-                if (temp_buff_wrapper->app_pid == app_pid) {
+                if (temp_sg_buff_wrapper->ntrn.app_pid == app_pid) {
                         no_wrappers_found = false;
-                        _crono_release_buff_wrapper(temp_buff_wrapper);
-                        crono_kvfree(temp_buff_wrapper);
+                        _crono_release_buff_wrapper(temp_sg_buff_wrapper);
+                        crono_kvfree(temp_sg_buff_wrapper);
                 }
         }
+
+        // Contiguous Buffer Wrappers
+        list_for_each_safe(pos, n, &contig_buff_wrappers_head) {
+                temp_contig_buff_wrapper = list_entry(
+                    pos, CRONO_CONTIG_BUFFER_INFO_WRAPPER, ntrn.list);
+                // Check if the buffer is allocated from the underlying
+                // process
+                if (temp_contig_buff_wrapper->ntrn.app_pid == app_pid) {
+                        no_wrappers_found = false;
+                        _crono_release_buff_wrapper(temp_contig_buff_wrapper);
+                        crono_kvfree(temp_contig_buff_wrapper);
+                }
+        }
+
         if (no_wrappers_found) {
                 pr_debug("No buffer wrappers found");
         }
@@ -1243,7 +1334,6 @@ static int _crono_release_buffer_wrappers_cur_proc() {
 }
 
 static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
-
         int ret = CRONO_SUCCESS, bar, icmd;
         unsigned long bar_base, bar_len;
         uint8_t __iomem *hwmem = NULL; // Memory pointer for the I/O operations
@@ -1326,5 +1416,240 @@ static int _crono_apply_cleanup_commands(struct inode *miscdev_inode) {
                  crono_dev->miscdev.name);
 
         // Return
+        return ret;
+}
+
+/**
+ * @brief
+ * Allocate and fill `pp_buff_wrapper` object.
+ * Allocate memory as per `arg.size` (CRONO_CONTIG_BUFFER_INFO*).
+ * Caller needs to `copy_to_user` to `arg` the buffer info
+ * (pp_buff_wrapper.buff_info).
+ * `pp_buff_wrapper` should be freed using 'crono_kvfree' to clean memory .
+ *
+ * @param filp
+ * @param arg
+ * `CRONO_CONTIG_BUFFER_INFO*`, to copy the buffer info from and address to.
+ * `.addr` has the user space memory address.
+ * @param pp_buff_wrapper
+ * @return int
+ */
+static int _crono_init_contig_buff_wrapper(
+    struct file *filp, unsigned long arg,
+    CRONO_CONTIG_BUFFER_INFO_WRAPPER **pp_buff_wrapper) {
+
+        int ret = CRONO_SUCCESS;
+        CRONO_CONTIG_BUFFER_INFO_WRAPPER *buff_wrapper =
+            NULL; // To simplify pointer-to-pointer
+
+        if (0 == arg) {
+                pr_err("Invalid parameter `arg` initializing buffer "
+                       "wrapper");
+                return -EINVAL;
+        }
+
+        // Allocate and initialize `buff_wrapper`
+        // Should be freed using 'crono_kvfree', e.g. after any call to
+        // `_crono_release_buffxyz` family.
+        *pp_buff_wrapper = buff_wrapper =
+            kmalloc(sizeof(CRONO_CONTIG_BUFFER_INFO_WRAPPER), GFP_KERNEL);
+        if (NULL == buff_wrapper) {
+                pr_err("Error allocating DMA internal struct");
+                return -ENOMEM;
+        }
+        buff_wrapper->ntrn.bwt = BWT_CONTIG;
+        buff_wrapper->ntrn.app_pid = task_pid_nr(current);
+
+        // Lock the memory from user space to kernel space to get the needed
+        // memory size
+        if (copy_from_user(&(buff_wrapper->buff_info), (void __user *)arg,
+                           sizeof(CRONO_CONTIG_BUFFER_INFO))) {
+                pr_err("Error copying user data");
+                ret = -EFAULT;
+                goto func_err;
+        }
+
+        // Get device pointer in internal structure
+        ret = _crono_get_dev_from_filp(filp, &(buff_wrapper->ntrn.devp));
+        if (ret != CRONO_SUCCESS) {
+                pr_err("Error getting dev");
+                ret = -EIO;
+                goto func_err;
+        }
+
+        ret = dma_set_mask_and_coherent(&buff_wrapper->ntrn.devp->dev,
+                                        DMA_BIT_MASK(32));
+        if (ret) {
+                pr_err("Error setting mask: %d", ret);
+                ret = -EIO;
+                goto func_err;
+        }
+
+        // Allocate contiguous memory in kernel space
+        pr_debug("Allocating contiguous buffer of size <%ld>",
+                 buff_wrapper->buff_info.size);
+        buff_wrapper->buff_info.addr = dma_alloc_coherent(
+            &(buff_wrapper->ntrn.devp->dev), buff_wrapper->buff_info.size,
+            &(buff_wrapper->dma_handle), GFP_KERNEL);
+        buff_wrapper->buff_info.dma_handle = buff_wrapper->dma_handle;
+        if (buff_wrapper->buff_info.addr == NULL) {
+                // Just null, no global error setting, check `dmsg` if you
+                // need any details
+                pr_err("Error allocating memory of size: %zu, check dmsg",
+                       buff_wrapper->buff_info.size);
+                ret = -ENOMEM; // Or appropriate error
+                goto func_err;
+        }
+        pr_debug("Allocated buffer address: <0x%p>, handle: <%llu>",
+                 buff_wrapper->buff_info.addr, buff_wrapper->dma_handle);
+        // Sample: Allocated buffer address: <0x00000000b065d96f>, handle:
+        // <0x117000000>
+
+        // Since the buffer is kernel-space address returned by
+        // dma_alloc_coherent. copy_to_user takes care of copying the data from
+        // the kernel space to the user space safely, dealing with the user
+        // space memory as needed (including any necessary fault handling).
+        // Caller to call `copy_to_user` for `buff_info` (including `.addr`
+        // set).
+
+        // Add the buffer to list
+        buff_wrapper->buff_info.id = contig_buff_wrappers_new_id;
+        list_add(&(buff_wrapper->ntrn.list), &contig_buff_wrappers_head);
+        pr_debug("Added contiguous buffer wrapper to internal list. "
+                 "Address <%p>, size <%ld>, id <%d>",
+                 buff_wrapper->buff_info.addr, buff_wrapper->buff_info.size,
+                 buff_wrapper->buff_info.id);
+        contig_buff_wrappers_new_id++;
+        _crono_debug_list_wrappers();
+
+        return ret;
+
+func_err:
+        crono_kvfree(buff_wrapper);
+        return ret;
+}
+
+static int _crono_miscdev_ioctl_lock_contig_buffer(struct file *filp,
+                                                   unsigned long arg) {
+        int ret;
+        CRONO_CONTIG_BUFFER_INFO_WRAPPER *bw = NULL;
+
+        pr_debug("Locking contiguous buffer...");
+
+        // Validate, initialize, and lock variables
+        if (CRONO_SUCCESS !=
+            (ret = _crono_init_contig_buff_wrapper(filp, arg, &bw))) {
+                return ret;
+        }
+
+        // Copy back all data to userspace memory, including address
+        // of the allocated memory
+        if (copy_to_user((void __user *)arg, &(bw->buff_info),
+                         sizeof(CRONO_CONTIG_BUFFER_INFO))) {
+                pr_err("Error copying buffer information back to user space");
+                ret = -EFAULT;
+                goto lock_err;
+        }
+
+        // Cleanup
+        pr_debug("Done locking contiguous buffer");
+        return CRONO_SUCCESS;
+
+lock_err:
+        _crono_release_buff_wrapper(bw);
+        crono_kvfree(bw);
+        return ret;
+}
+
+static int _crono_miscdev_ioctl_unlock_contig_buffer(struct file *filp,
+                                                     unsigned long arg) {
+        int ret = CRONO_SUCCESS;
+        int wrapper_id = -1;
+        CRONO_CONTIG_BUFFER_INFO_WRAPPER *found_buff_wrapper = NULL;
+
+        // Lock the memory from user space to kernel space
+        if (0 == arg) {
+                pr_err("Invalid parameter `arg` unlocking buffer");
+                return -EINVAL;
+        }
+        if (copy_from_user(&wrapper_id, (void __user *)arg, sizeof(int))) {
+                pr_err("Error copying user data");
+                return -EFAULT;
+        }
+        pr_debug("Unlocking buffer of wrapper id <%d>...", wrapper_id);
+
+        if (CRONO_SUCCESS != get_bw(wrapper_id, &found_buff_wrapper)) {
+                pr_err("Buffer wrapper <%d> is not found", wrapper_id);
+                return -EINVAL;
+        }
+
+        // Clean up buffer memory allocated in the kernel module
+        ret = _crono_release_buff_wrapper(found_buff_wrapper);
+
+        // Free the wrapper after all members cleanup is done
+        kvfree(found_buff_wrapper);
+
+        // Copy back just to obey DMA APIs rules
+        if (copy_to_user((void __user *)arg, &wrapper_id, sizeof(int))) {
+                ret = -EFAULT;
+        }
+
+        return ret;
+}
+
+static int crono_mmap_contig(struct file *file, struct vm_area_struct *vma) {
+        // `mmap` `offset` (last) argument should be aligned on a page boundary,
+        // so the buffer id is sent to `mmap` multiplied by PAGE_SIZE, however,
+        // it's recieved here divided by PATE_SIZE already
+        int bw_id = vma->vm_pgoff;
+        int ret = CRONO_SUCCESS;
+        phys_addr_t virttophys;
+        CRONO_CONTIG_BUFFER_INFO_WRAPPER *found_buff_wrapper = NULL;
+
+        pr_debug("Mapping Buffer Wrapper <%d>, offset: <%lu>", bw_id,
+                 vma->vm_pgoff);
+
+        if (CRONO_SUCCESS != get_bw(bw_id, &found_buff_wrapper)) {
+                pr_err("Buffer wrapper <%d> is not found", bw_id);
+                return -EINVAL;
+        }
+
+        virttophys = virt_to_phys(found_buff_wrapper->buff_info.addr);
+        pr_debug("virt_to_phys from 0x%p to 0x%llx",
+                 found_buff_wrapper->buff_info.addr, virttophys);
+
+        // we are using pgoff as a buffer index only
+        vma->vm_pgoff = 0;
+        ret = remap_pfn_range(
+            vma, vma->vm_start, virttophys >> PAGE_SHIFT,
+            found_buff_wrapper->buff_info.size, vma->vm_page_prot);
+        pr_debug("Mapping Buffer Wrapper <%d> returned code <%d>", bw_id, ret);
+        return ret;
+}
+
+static int get_bw(int bw_id, CRONO_CONTIG_BUFFER_INFO_WRAPPER **ppBW) {
+        int ret = CRONO_SUCCESS;
+        CRONO_CONTIG_BUFFER_INFO_WRAPPER *found_buff_wrapper = NULL;
+        CRONO_CONTIG_BUFFER_INFO_WRAPPER *temp_buff_wrapper = NULL;
+        struct list_head *pos, *n;
+
+        // Find the related buffer_wrapper in the list
+        _crono_debug_list_wrappers();
+        list_for_each_safe(pos, n, &contig_buff_wrappers_head) {
+                temp_buff_wrapper = list_entry(
+                    pos, CRONO_CONTIG_BUFFER_INFO_WRAPPER, ntrn.list);
+                if (temp_buff_wrapper->buff_info.id == bw_id)
+                        found_buff_wrapper = temp_buff_wrapper;
+        }
+        if (NULL == found_buff_wrapper) {
+                pr_err("Buffer Wrapper of id <%d> is not found in "
+                       "internal list",
+                       bw_id);
+                return -EINVAL;
+        } else {
+                pr_debug("Found wrapper of id <%d> in the internal list",
+                         found_buff_wrapper->buff_info.id);
+        }
+        *ppBW = found_buff_wrapper;
         return ret;
 }

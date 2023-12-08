@@ -47,8 +47,8 @@ static int crono_miscdev_release(struct inode *inode, struct file *file);
  * @param file[in]: is a valid miscdev file for the device.
  * @param cmd[in]: is a valid miscdev ioctl command defined in
  * 'crono_linux_kernel.h`.
- * @param arg[in/out]: is a pointer to valid `CRONO_BUFFER_INFO` object in user
- * space memory.
+ * @param arg[in/out]: is a pointer to valid `CRONO_SG_BUFFER_INFO` object in
+ * user space memory.
  *
  * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
  */
@@ -73,28 +73,49 @@ static int _crono_get_DBDF_from_dev(struct pci_dev *dev,
  * It locks the buffer, and `copy_to_user` is called for all memory.
  *
  * @param filp[in]: the file descriptor passed to ioctl.
- * @param arg[in/out]: is a valid `CRONO_BUFFER_INFO` object pointer in user
+ * @param arg[in/out]: is a valid `CRONO_SG_BUFFER_INFO` object pointer in user
  * space memory. The object should have all members set, except the `id`, which
  * will be sit inside this function upon successful return.
  *
  * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
  */
-static int _crono_miscdev_ioctl_lock_buffer(struct file *filp,
-                                            unsigned long arg);
+static int _crono_miscdev_ioctl_lock_sg_buffer(struct file *filp,
+                                               unsigned long arg);
+
+/**
+ * @brief
+ * Lock contiguous buffer for 32bit using dma_alloc_coherent
+ *
+ * @param filp
+ * @param arg is an address of a valid `CRONO_CONTIG_BUFFER_INFO`
+ * @return int
+ */
+static int _crono_miscdev_ioctl_lock_contig_buffer(struct file *filp,
+                                                   unsigned long arg);
 
 /**
  * Internal function that unlocks a memory buffer using ioctl().
  * Calls 'unpin_user_pages'
  *
  * @param filp[in]: the file descriptor passed to ioctl.
- * @param arg[in]: is a valid `CRONO_BUFFER_INFO` object pointer in user
- * space memory. The object should have `id` set based on previous call to
- * '_crono_miscdev_ioctl_lock_buffer'.
+ * @param arg[in]: is a valid buffer internal id pointer in user space memory.
+ * The `id` should be set based on previous call to
+ * '_crono_miscdev_ioctl_lock_sg_buffer'.
  *
  * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
  */
-static int _crono_miscdev_ioctl_unlock_buffer(struct file *filp,
-                                              unsigned long arg);
+static int _crono_miscdev_ioctl_unlock_sg_buffer(struct file *filp,
+                                                 unsigned long arg);
+
+/**
+ * @brief
+ * Lock contiguous buffer for 32bit using dma_alloc_coherent
+ *
+ * @param filp
+ * @param arg is the wrapper id (CRONO_CONTIG_BUFFER_INFO.id) of the buffer.
+ */
+static int _crono_miscdev_ioctl_unlock_contig_buffer(struct file *filp,
+                                                     unsigned long arg);
 
 /**
  * Internal function that creates SG list for the buffer in `buff_wrapper`
@@ -109,22 +130,22 @@ static int _crono_miscdev_ioctl_unlock_buffer(struct file *filp,
  * `sgt` must be freed by the driver module using `sg_free_table`.
  *
  * Prerequisites:
- *  - Buffer is locked by `_crono_miscdev_ioctl_lock_buffer`.
+ *  - Buffer is locked by `_crono_miscdev_ioctl_lock_sg_buffer`.
  *  - `kernel_pages` are filled.
  *  - `buff_info.pages` is allocated.
  *
  * @param filep[in]: A valid file descriptor of the device file.
  * @param buff_wrapper[in/out]: is a valid kernel pointer to the stucture
- * `CRONO_BUFFER_INFO`.
+ * `CRONO_SG_BUFFER_INFO`.
  *
  * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
  */
 static int
 _crono_miscdev_ioctl_generate_sg(struct file *filp,
-                                 CRONO_BUFFER_INFO_WRAPPER *buff_wrapper);
+                                 CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper);
 
 /**
- * Internal function called by `_crono_miscdev_ioctl_lock_buffer`.
+ * Internal function called by `_crono_miscdev_ioctl_lock_sg_buffer`.
  *
  * Allocate and fill `kernel_pages` with the pinned pages information, and
  * `buffer_info.size` with the actual buffer size pinned, and
@@ -160,22 +181,29 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
  */
 static int
 _crono_miscdev_ioctl_pin_buffer(struct file *filp,
-                                CRONO_BUFFER_INFO_WRAPPER *buff_wrapper,
+                                CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper,
                                 unsigned long nr_per_call);
 
 /**
+ * For CRONO_SG_BUFFER_INFO_WRAPPER:
  * Unpin, unmap Scatter/Gather list, free all memory allocated for
  * `buff_wrapper`, and remove it from the buffer information wrappers.
- * `buff_wrapper` should have been initialized using `_crono_init_buff_wrapper`.
+ * `buff_wrapper` should have been initialized using
+ * `_crono_init_sg_buff_wrapper`.
+ *
+ * For CRONO_CONTIG_BUFFER_INFO_WRAPPER:
+ * free the memory.
  *
  * Caller should free `buff_wrapper`.
  *
  * @param buff_wrapper[in/out]
+ * CRONO_SG_BUFFER_INFO_WRAPPER or CRONO_CONTIG_BUFFER_INFO_WRAPPER, based
+ * on .ntrn.bwt
  *
  * @return `CRONO_SUCCESS` in case of success, or errno in case of error.
  * `buff_wrapper` should point to a freed memory upon successfulreturn.
  */
-static int _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *buff_wrapper);
+static int _crono_release_buff_wrapper(void *buff_wrapper);
 
 /**
  * The user mode part of the device driver adds a couple of register write
@@ -184,7 +212,7 @@ static int _crono_release_buff_wrapper(CRONO_BUFFER_INFO_WRAPPER *buff_wrapper);
  * controller of the device is disabled even if the user application crashes
  * unexpectedly
  *
- * @param arg[in]: is a pointer to valid `CRONO_BUFFER_INFO` object in user
+ * @param arg[in]: is a pointer to valid `CRONO_SG_BUFFER_INFO` object in user
  * space memory.
  */
 static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
@@ -229,18 +257,18 @@ static int _crono_get_crono_dev_from_filp(struct file *filp,
                                           struct crono_miscdev **crono_devpp);
 
 /**
- * @brief Construct a new 'CRONO_BUFFER_INFO_WRAPPER' object from `arg`.
+ * @brief Construct a new 'CRONO_SG_BUFFER_INFO_WRAPPER' object from `arg`.
  * Adds the wrapper to the buffer information wrappers list.
  * Call `_crono_release_buff_wrapper` when done working with the wrapper.
  *
  * @param filp[in]: the file descriptor passed to ioctl.
- * @param arg[in]: is a pointer to valid `CRONO_BUFFER_INFO` object in user
+ * @param arg[in]: is a pointer to valid `CRONO_SG_BUFFER_INFO` object in user
  * space memory.
  * @param pp_buff_wrapper[out]
  */
 static int
-_crono_init_buff_wrapper(struct file *filp, unsigned long arg,
-                         CRONO_BUFFER_INFO_WRAPPER **pp_buff_wrapper);
+_crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
+                            CRONO_SG_BUFFER_INFO_WRAPPER **pp_buff_wrapper);
 
 /**
  * If `val` is NULL, then it logs error message `err_msg` and returns `errno`.
