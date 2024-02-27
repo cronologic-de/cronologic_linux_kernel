@@ -603,10 +603,14 @@ static int _crono_miscdev_ioctl_unlock_sg_buffer(struct file *filp,
                         found_buff_wrapper = temp_buff_wrapper;
         }
         if (NULL == found_buff_wrapper) {
-                pr_err("Buffer Wrapper of id <%d> is not found in "
-                       "internal list",
-                       wrapper_id);
-                return -EINVAL;
+                pr_warn("Buffer Wrapper of id <%d> is not found in "
+                        "internal list",
+                        wrapper_id);
+
+                // Returning error will cause any coming open to fail returning
+                // error EFAULT 14
+                // Case might happen when closing after multiple opens
+                return CRONO_SUCCESS;
         } else {
                 pr_debug("Found wrapper of id <%d> in the internal list",
                          found_buff_wrapper->buff_info.id);
@@ -966,7 +970,6 @@ static int _crono_release_buff_wrapper(void *buff_wrapper) {
 // Methods
 //
 static int crono_miscdev_open(struct inode *inode, struct file *filp) {
-
         int icrono_miscdev, passed_iminor;
         pr_debug("Opening device file: minor <%d>, PID <%d>...", iminor(inode),
                  task_pid_nr(current));
@@ -983,25 +986,27 @@ static int crono_miscdev_open(struct inode *inode, struct file *filp) {
                 // Check if it's the first time the miscdev is opened
                 if (0 == crono_miscdev_pool[icrono_miscdev].open_count) {
                         // First time to open the miscdev
-                        crono_miscdev_pool[icrono_miscdev].open_count++;
+                        crono_miscdev_pool[icrono_miscdev].open_count = 1;
+                        pr_debug("Device of minor <%d> opened successfully",
+                                 passed_iminor);
                         return CRONO_SUCCESS;
                 }
 
-                // miscdev is already opened, it's not an error
-                pr_debug("Opening an already opened miscdev, open count <%d>",
-                         crono_miscdev_pool[icrono_miscdev].open_count);
+                // miscdev is already opened
+                pr_warn("Opening an already opened miscdev device of minor "
+                        "<%d> is not supported",
+                        passed_iminor);
 
-                // Opening is just a counter, don't stop the open
-                // process and let caller decide on the action
-                crono_miscdev_pool[icrono_miscdev].open_count++;
-                return CRONO_SUCCESS; // Device or resource already opened
-                                      // No problem with driver
+                // Multiple open of the same device is not supported by device.
+                // Uncomment the following line and adjust code if you need
+                // to support multiple open of the same device.
+                // crono_miscdev_pool[icrono_miscdev].open_count++;
+                return -EINVAL;
         }
         // Internal error
         pr_err("Trying to open a device of minor <%d> while not found in "
                "crono_miscdev_pool",
                passed_iminor);
-
         return -ENODEV;
 }
 
@@ -1010,9 +1015,6 @@ static int crono_miscdev_release(struct inode *inode, struct file *filp) {
         int icrono_miscdev, passed_iminor;
         pr_debug("Releasing device file: minor <%d>, PID <%d>", iminor(inode),
                  task_pid_nr(current));
-
-        _crono_release_buffer_wrappers_cur_proc();
-        _crono_apply_cleanup_commands(inode);
 
         // Decrement the file open counter
         passed_iminor = iminor(inode);
@@ -1032,9 +1034,17 @@ static int crono_miscdev_release(struct inode *inode, struct file *filp) {
                         return -ENODATA; // No data found for open
                 }
                 // miscdev is opened (at least once)
-                crono_miscdev_pool[icrono_miscdev].open_count--;
+                _crono_release_buffer_wrappers_cur_proc();
+                _crono_apply_cleanup_commands(inode);
+
+                // Releasing the device will make all "opened instances" invalid
+                // so reset open_count as nothing is open after release. Caller
+                // can use `ioctl` using `IOCTL_CRONO_GET_DEV_INFO` at any time
+                // to get the open_count before releasing.
+                crono_miscdev_pool[icrono_miscdev].open_count = 0;
                 return CRONO_SUCCESS;
         }
+
         // Internal error
         pr_err("Trying to release a device of minor <%d> while not found in "
                "crono_miscdev_pool",
@@ -1620,9 +1630,10 @@ static int crono_mmap_contig(struct file *file, struct vm_area_struct *vma) {
 
         // we are using pgoff as a buffer index only
         vma->vm_pgoff = 0;
-        ret = remap_pfn_range(
-            vma, vma->vm_start, virttophys >> PAGE_SHIFT,
-            found_buff_wrapper->buff_info.size, vma->vm_page_prot);
+        ret = remap_pfn_range(vma, vma->vm_start, virttophys >> PAGE_SHIFT,
+                              found_buff_wrapper->buff_info.size,
+                              vma->vm_page_prot);
+
         pr_debug("Mapping Buffer Wrapper <%d> returned code <%d>", bw_id, ret);
         return ret;
 }
@@ -1642,10 +1653,16 @@ static int get_bw(int bw_id, CRONO_CONTIG_BUFFER_INFO_WRAPPER **ppBW) {
                         found_buff_wrapper = temp_buff_wrapper;
         }
         if (NULL == found_buff_wrapper) {
-                pr_err("Buffer Wrapper of id <%d> is not found in "
-                       "internal list",
-                       bw_id);
-                return -EINVAL;
+                // Not found, just display a warning but operation is
+                // considered successful
+                pr_warn("Buffer Wrapper of id <%d> is not found in "
+                        "internal list",
+                        bw_id);
+
+                // Returning error will cause any coming opn to fail returning
+                // error EFAULT 14
+                // Case might happen when closing after multiple opens
+                return CRONO_SUCCESS;
         } else {
                 pr_debug("Found wrapper of id <%d> in the internal list",
                          found_buff_wrapper->buff_info.id);
