@@ -31,7 +31,7 @@ typedef struct {
 // Copied from crono_kernel_interface.h
 enum { CRONO_KERNEL_PCI_CARDS = 8 }; // Slots max X Functions max
 #define CRONO_VENDOR_ID 0x1A13
-#define CRONO_SUCCESS 0
+#define CRONO_SUCCESS 0 // Must be equal to its value in the interface headers
 #define CLEANUP_CMD_COUNT 16
 /**
  * The index of the device BAR (0 to 6) that is used to set the registers by.
@@ -112,9 +112,6 @@ struct crono_miscdev {
  * CRONO_DEVICE_xxx mentioned above
  */
 #define CRONO_DEVICE_DEV_ID_MAX_COUNT CRONO_DEVICE_NDIGO6G12
-
-static int crono_driver_probe(struct pci_dev *dev,
-                              const struct pci_device_id *id);
 
 typedef uint64_t DMA_ADDR;
 

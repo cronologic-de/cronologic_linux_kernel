@@ -270,6 +270,9 @@ static int
 _crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
                             CRONO_SG_BUFFER_INFO_WRAPPER **pp_buff_wrapper);
 
+static int crono_driver_probe(struct pci_dev *dev,
+                              const struct pci_device_id *id);
+
 /**
  * If `val` is NULL, then it logs error message `err_msg` and returns `errno`.
  *
