@@ -607,7 +607,7 @@ static int _crono_miscdev_ioctl_unlock_sg_buffer(struct file *filp,
                         "internal list",
                         wrapper_id);
 
-                // Returning error will cause any coming opn to fail returning
+                // Returning error will cause any coming open to fail returning
                 // error EFAULT 14
                 // Case might happen when closing after multiple opens
                 return CRONO_SUCCESS;
