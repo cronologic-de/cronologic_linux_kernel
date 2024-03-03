@@ -472,11 +472,19 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
                         nr_per_call =
                             (next_pages_addr - start_addr_to_pin) / PAGE_SIZE;
                 }
+#ifndef KERNEL_6_5_OR_LATER
+#pragma message("Kernel version is older than 6.5 but newer than 5.5")
                 actual_pinned_nr_of_call = pin_user_pages(
                     start_addr_to_pin, nr_per_call, FOLL_WRITE,
                     (struct page **)(buff_wrapper->kernel_pages) +
-                        buff_wrapper->pinned_pages_nr,
-                    NULL);
+                        buff_wrapper->pinned_pages_nr, NULL);
+#else                        
+                actual_pinned_nr_of_call = pin_user_pages(
+                    start_addr_to_pin, nr_per_call, FOLL_WRITE,
+                    (struct page **)(buff_wrapper->kernel_pages) +
+                        buff_wrapper->pinned_pages_nr);
+#endif                        
+
 
                 if (actual_pinned_nr_of_call < 0) {
                         // Error
