@@ -220,12 +220,12 @@ static int _crono_miscdev_ioctl_cleanup_setup(struct file *filp,
 
 /**
  * Internal function to get a pointer to the corresponding device element in
- * `crono_device_types_info` array elements from the file descriptor `filep`,
+ * `crono_miscdev_pool` array elements from the file descriptor `filep`,
  * matching the driver minor of both.
  *
  * @param filep[in]: A valid file descriptor of the device file.
  * @param devpp[out]: A valid pointer will contain a pointer to the device
- * structure object in `crono_device_types_info`.
+ * structure object in `pci_dev`.
  *
  * @returns `CRONO_SUCCESS` in case of success, or `-ENODATA` in case file not
  * found.
