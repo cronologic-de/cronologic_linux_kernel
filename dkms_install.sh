@@ -1,11 +1,14 @@
 # -----------------------------------------------------------------------------
 # 		Batch script to install cronologic linux PCI driver for DKMS
 # -----------------------------------------------------------------------------
+#
+#               PLEASE DO NOT RUN "DIRECTLY" FROM COMMAND LINE
+#                        ONLY USE `dkms install .`
 # 
 # Prerequisites:
 # - If called from DKMS, e.g. in the POST_INSTALL, someone (mainly Makefile)
 #   should save DKMS KERNELRELEASE value to file `crono_dkms_kver`, so the 
-#   script reads it it and pass it to `install.sh`. 
+#   script reads it and passes it to `install.sh`. 
 #
 printf "Crono: installing cronologic PCI kernel module...\n"
 
