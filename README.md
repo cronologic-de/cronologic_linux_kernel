@@ -1,7 +1,7 @@
 # cronologic_linux_kernel
 Linux Kernel Module that allows to map large PCIe DMA ring buffers.
 
-It has been developed by cronologic GmbH & Co. KG to support the drivers for its time measurement devices such as:
+It has been developed by [cronologic GmbH & Co. KG](https://www.cronologic.de) to support the drivers for its time measurement devices such as:
 * [xHPTDC8](https://www.cronologic.de/products/tdcs/xhptdc8-pcie) 8 channel 13ps streaming time-to-digital converter
 * [xTDC4](https://www.cronologic.de/products/tdcs/xtdc4-pcie) 4 channel 13ps common-start time-to-digital converter
 * [Timetagger](https://www.cronologic.de/products/tdcs/timetagger) 100/200/400/800 ps low cost TDCs
@@ -14,6 +14,21 @@ The user mode part of the driver is available in a [separate repository](https:/
 
 The initial code has been written by [Bassem Ramzy](https://github.com/Bassem-Ramzy) with support from [Richard Weinberger](https://github.com/richardweinberger). It is licensed unter [GPL3](LICENSE).
 
+## Setup for cronologic devices
+Detailed instructions on how to install the project are given under [Installation](README.md#installation).
+
+Here is just a brief overview of the necessary steps:
+
+
+1. Install the [prerequisites](README.md#prerequisites)
+2. Clone the repository using `git clone https://github.com/cronologic-de/cronologic_linux_kernel.git`<br>Alternatively, download the `.zip`-file of the [latest release](https://github.com/cronologic-de/cronologic_linux_kernel/releases/latest) and unpack it
+3. In a terminal, navigate to the repository folder and [install](README.md#dkms-installation) the project
+4. The necessary libraries for your particular cronologic device are provided in its respective GitHub repository
+   - [xHPTDC8](https://github.com/cronologic-de/xhptdc8_babel)
+   - [xTDC4](https://github.com/cronologic-de/xtdc_babel)
+   - [TimeTagger4](https://github.com/cronologic-de/xtdc_babel)
+   - [Ndigo6G-12](https://github.com/cronologic-de/ug_ndigo6g)
+   - [Ndigo5G-10](https://github.com/cronologic-de/ndigo5g_babel)
 ---
 
 # The Project
@@ -72,40 +87,15 @@ The driver is tested on the following **64-bit** distributions:
 
 ---
 
-# Build the Project
+# Installation
 
-## Build Manually
-To build the project, run `make` command:
-```CMD
-make
-```
+`make`, `gcc`, and the Linux `modules` and `headers` need to be installed for your current kernel version. See [Prerequisites](README.md#prerequisites) for instructions on how to install them for the supported Linux distributions.
 
-### Target Output
-The build target output is:
-| Output | Builds | Description | 
-| -------- | ------ | ----------- |
-| `crono_pci_drvmod.ko` | ``../../../build/linux/bin/release_64/``</br>and</br>``./src/release_64/`` | The release version of the driver. |
-| `crono_pci_drvmod.ko` | ``../../../build/linux/bin/debug_64/``</br>and</br>``./src/debug_64/`` | The debug version of the driver. |
+We recommend installing the project using `DKMS`, as outlined in [`DKMS` Installation](README.md#dkms-installation). If, however, you cannot use `DKMS`, installation instructions for a manual installation are also provided in [Manual Installation](README.md#manual-installation).
 
-* `build` folder is created on the same level of project folder `cronologic_linux_kernel`, to be shared with all other projects outputs in the same folder.
+If you only want to build the project and not install it, you can find instructions [here](README.md#build-the-project-without-installing-it).
 
-### Makefiles and Build Versions
-The following makefiles are used to build the project versions:
-| Makefile | Builds | Description | 
-| -------- | ------ | ----------- |
-| ./Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project.|
-| ./src/Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project. |
-| ./src/debug_64/Makefile | Debug | Builds the `debug` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``../../../build/linux/bin/debug_64/`` directory. </br> Additional debugging information will be printed to the kernel messages displayed using `dmesg`.|
-| ./src/release_64/Makefile | Release | Builds the `release` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``../../../build/linux/bin/release_64/`` directory. |
-
-## Build Using `DKMS`
-Run `dkms` `build` command from the project folder, e.g.
-```CMD
-sudo dkms build .
-```
-`dkms.conf` uses the project `Makefile` found under `/src/release_64` to build the porject.
-
-## Build Prerequisites
+## Prerequisites
 ### Ubuntu 
 - Make sure you have **sudo** access.
 - Make sure that both `make` and `gcc` packages are installed, or install them using: 
@@ -206,57 +196,21 @@ gcc -v
 ls /lib/modules/$(uname -r)/build
 ```
 
-## Clean the Output Files 
-To clean the project all builds output:
-```CMD
-make clean
-```
-Or, you can clean a specific build as following:
-```CMD
-.../src/debug_64$ make clean
-.../src/release_64$ make clean
-```
-
-## More Details
-
-### Preprocessor Directives
-| Identifier | Description | 
-| ---------- | ----------- |
-|`OLD_KERNEL_FOR_PIN` | This identifier is defined when the current kernel version is < 5.6. </br> Kernel Version 5.6 is the first version introduced `pin_user_pages`, which is used by the driver for DMA APIs.|
-|`CRONO_KERNEL_MODE`| This identifier is used to differentiate between using the header files by the driver code and using them by userspace and applications code.</br>Hance, it's defined only in the driver module makefiles.|
-|`DEBUG`| Debug mode.|
-
-### Why There Is a Makefile Per Build
-For creating a kernel module, it's much simpler (_and feasible_) to have a Makefile per build, rather than having all builds in one Makefile.
-
-### Create Symbolic Links to Source Files 
-Makefile for kernel module is simpler when having all the source code files in the same directory of the Makefile. 
-
-That's why, the Makefiles create symbolic links to the source files before starting the build, then delete them after building the code.
-
----
-
-# Installation
-
-Installation can be done either by using `DKMS` or manually.
-
-## Prerequisites
-Please refer to: [Build Prerequisites](https://github.com/cronologic-de/cronologic_linux_kernel#build-prerequisites)
-
 ## `DKMS` Installation
 Run `dkms` `install` command from the project folder, e.g.
 ```CMD
 sudo dkms install .
 ```
-`dkms.conf` uses `install.sh` to install the porject on the system and add module to the root.
+`dkms.conf` uses `install.sh` to install the project on the system and add module to the root.
 
 ## Manual Installation
+
+> **Warning**
+If you manually install the project, you need to **run the installation script with every kernel version used** on the machine, and **after every upgrade** to a new kernel version.
 
 This installation of the driver module is very simple, and is mainly done via `insmod`, however, an installation script is provided to support wider options, like debug, add to boot, uninstall, etc...
 
 The installation firstly builds the driver module code, that's why the minimal build packages are needed as prerequisites (_mentioned in the following sections_).
-
-User should **run the installation script with every kernel version used** on the machine, and **after every upgrade** to a new kernel version.
 
 ### Installation Steps
 To install the driver:
@@ -314,25 +268,6 @@ The `debug` build of the driver module prints more information to the kernel mes
 sudo bash ./install.sh -d
 ```
 
-## Uninstall the Driver
-
-### Uninstall Using `DKMS`
-Run `dkms` `remove` command from the project folder, e.g.
-```
-sudo dkms remove crono_pci_drvmod/1.0.2 --all --force
-```
-It will both uninstall the driver module from `dkms` tree, and remove the module from the system and root by calling `install.sh`.
-
-### Uninstall Manually
-Run the following command and it will uninstall the driver (if installed), and remove it from boot (if it's there):
-```CMD
-sudo bash ./install.sh -u
-```
-or, you can run `rmmod`, which will only removes the installed module but won't remove it from boot if it's there. 
-```CMD
-sudo rmmod crono_pci_drvmod.ko
-```
-
 ## What Happens After Installation
 
 After installing the driver module successfully, the following takes place:
@@ -350,6 +285,94 @@ ls /dev/crono* -lah
 A typical debug successful output could be as following for two devices installed on the system (an xTDC4, and an xHPTDC8):
 ![image](https://user-images.githubusercontent.com/75851720/135750960-fd43e48a-09f9-4718-a284-ca64da73fc1f.png)
 
+# Uninstall the Driver
+
+## Uninstall Using `DKMS`
+Run `dkms` `remove` command from the project folder, e.g.
+```
+sudo dkms remove crono_pci_drvmod/1.0.2 --all --force
+```
+It will both uninstall the driver module from `dkms` tree, and remove the module from the system and root by calling `install.sh`.
+
+## Uninstall Manually
+Run the following command and it will uninstall the driver (if installed), and remove it from boot (if it's there):
+```CMD
+sudo bash ./install.sh -u
+```
+or, you can run `rmmod`, which will only removes the installed module but won't remove it from boot if it's there. 
+```CMD
+sudo rmmod crono_pci_drvmod.ko
+```
+
+# Build the Project without installing it
+
+> **Note**
+Instead of solely building the project, we recommend installing it as described [here](README.md#installation).
+
+## Build Prerequisites
+Please refer to: [Prerequisites](README.md#prerequisites)
+
+## Build Manually
+To build the project, run `make` command:
+```CMD
+make
+```
+
+### Target Output
+The build target output is:
+| Output | Builds | Description | 
+| -------- | ------ | ----------- |
+| `crono_pci_drvmod.ko` | ``../../../build/linux/bin/release_64/``</br>and</br>``./src/release_64/`` | The release version of the driver. |
+| `crono_pci_drvmod.ko` | ``../../../build/linux/bin/debug_64/``</br>and</br>``./src/debug_64/`` | The debug version of the driver. |
+
+* `build` folder is created on the same level of project folder `cronologic_linux_kernel`, to be shared with all other projects outputs in the same folder.
+
+### Makefiles and Build Versions
+The following makefiles are used to build the project versions:
+| Makefile | Builds | Description | 
+| -------- | ------ | ----------- |
+| ./Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project.|
+| ./src/Makefile | Debug </br> Release | Calls ALL makefiles in sub-directories. </br>This will build both the `debug` and `release` versions of the project. |
+| ./src/debug_64/Makefile | Debug | Builds the `debug` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``../../../build/linux/bin/debug_64/`` directory. </br> Additional debugging information will be printed to the kernel messages displayed using `dmesg`.|
+| ./src/release_64/Makefile | Release | Builds the `release` version of the project. </br>Output files will be generated on the same directory. </br>Driver module file will be _copied_ to ``../../../build/linux/bin/release_64/`` directory. |
+
+## Build Using `DKMS`
+Run `dkms` `build` command from the project folder, e.g.
+```CMD
+sudo dkms build .
+```
+`dkms.conf` uses the project `Makefile` found under `/src/release_64` to build the porject.
+
+
+## Clean the Output Files 
+To clean the project all builds output:
+```CMD
+make clean
+```
+Or, you can clean a specific build as following:
+```CMD
+.../src/debug_64$ make clean
+.../src/release_64$ make clean
+```
+
+## More Details
+
+### Preprocessor Directives
+| Identifier | Description | 
+| ---------- | ----------- |
+|`OLD_KERNEL_FOR_PIN` | This identifier is defined when the current kernel version is < 5.6. </br> Kernel Version 5.6 is the first version introduced `pin_user_pages`, which is used by the driver for DMA APIs.|
+|`CRONO_KERNEL_MODE`| This identifier is used to differentiate between using the header files by the driver code and using them by userspace and applications code.</br>Hance, it's defined only in the driver module makefiles.|
+|`DEBUG`| Debug mode.|
+
+### Why There Is a Makefile Per Build
+For creating a kernel module, it's much simpler (_and feasible_) to have a Makefile per build, rather than having all builds in one Makefile.
+
+### Create Symbolic Links to Source Files 
+Makefile for kernel module is simpler when having all the source code files in the same directory of the Makefile. 
+
+That's why, the Makefiles create symbolic links to the source files before starting the build, then delete them after building the code.
+
+---
 ---
 
 # Accessing the Driver
