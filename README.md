@@ -15,14 +15,14 @@ The user mode part of the driver is available in a [separate repository](https:/
 The initial code has been written by [Bassem Ramzy](https://github.com/Bassem-Ramzy) with support from [Richard Weinberger](https://github.com/richardweinberger). It is licensed unter [GPL3](LICENSE).
 
 ## Setup for cronologic devices
-Detailed instructions on how to install the project are given under [Installation](README.md#installation).
+Detailed instructions on how to install the project are given under [Installation](#installation).
 
 Here is just a brief overview of the necessary steps:
 
 
-1. Install the [prerequisites](README.md#prerequisites)
+1. Install the [prerequisites](#prerequisites)
 2. Clone the repository using `git clone https://github.com/cronologic-de/cronologic_linux_kernel.git`<br>Alternatively, download the `.zip`-file of the [latest release](https://github.com/cronologic-de/cronologic_linux_kernel/releases/latest) and unpack it
-3. In a terminal, navigate to the repository folder and [install](README.md#dkms-installation) the project
+3. In a terminal, navigate to the repository folder and [install](#dkms-installation) the project
 4. The necessary libraries for your particular cronologic device are provided in its respective GitHub repository
    - [xHPTDC8](https://github.com/cronologic-de/xhptdc8_babel)
    - [xTDC4](https://github.com/cronologic-de/xtdc_babel)
@@ -89,11 +89,11 @@ The driver is tested on the following **64-bit** distributions:
 
 # Installation
 
-`make`, `gcc`, and the Linux `modules` and `headers` need to be installed for your current kernel version. See [Prerequisites](README.md#prerequisites) for instructions on how to install them for the supported Linux distributions.
+`make`, `gcc`, and the Linux `modules` and `headers` need to be installed for your current kernel version. See [Prerequisites](#prerequisites) for instructions on how to install them for the supported Linux distributions.
 
-We recommend installing the project using `DKMS`, as outlined in [`DKMS` Installation](README.md#dkms-installation). If, however, you cannot use `DKMS`, installation instructions for a manual installation are also provided in [Manual Installation](README.md#manual-installation).
+We recommend installing the project using `DKMS`, as outlined in [`DKMS` Installation](#dkms-installation). If, however, you cannot use `DKMS`, installation instructions for a manual installation are also provided in [Manual Installation](#manual-installation).
 
-If you only want to build the project and not install it, you can find instructions [here](README.md#build-the-project-without-installing-it).
+If you only want to build the project and not install it, you can find instructions [here](#build-the-project-without-installing-it).
 
 ## Prerequisites
 ### Ubuntu 
@@ -206,7 +206,7 @@ sudo dkms install .
 ## Manual Installation
 
 > **Warning**
-If you manually install the project, you need to **run the installation script with every kernel version used** on the machine, and **after every upgrade** to a new kernel version. We recommend installation using [`DKMS`](README.md#dkms-installation).
+If you manually install the project, you need to **run the installation script with every kernel version used** on the machine, and **after every upgrade** to a new kernel version. We recommend installation using [`DKMS`](#dkms-installation).
 
 This installation of the driver module is very simple, and is mainly done via `insmod`, however, an installation script is provided to support wider options, like debug, add to boot, uninstall, etc...
 
@@ -307,10 +307,10 @@ sudo rmmod crono_pci_drvmod.ko
 # Build the Project without installing it
 
 > **Note**
-If you are using a cronologic device, you need to install the project instead of only building it. Please, refer to the [Installation instructions](README.md#installation).
+If you are using a cronologic device, you need to install the project instead of only building it. Please, refer to the [Installation instructions](#installation).
 
 ## Build Prerequisites
-Please refer to: [Prerequisites](README.md#prerequisites)
+Please refer to: [Prerequisites](#prerequisites)
 
 ## Build Manually
 To build the project, run `make` command:
