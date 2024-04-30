@@ -162,7 +162,7 @@ sudo apt-get install make gcc
 ```
 - Make sure `modules` and `headers` of your current kernel version are installed, or install them using:
 ```CMD
-sudo apt-get install linux-headers-$(uname -r) 
+sudo apt-get install linux-headers-$(uname -r) linux-modules-$(uname -r)
 ```
 - If you want to use `dkms`, make sure it's installed, or install it using:
 ```CMD
