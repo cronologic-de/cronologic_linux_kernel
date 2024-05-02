@@ -27,7 +27,7 @@ Here is just a brief overview of the necessary steps:
    - [xHPTDC8](https://github.com/cronologic-de/xhptdc8_babel)
    - [xTDC4](https://github.com/cronologic-de/xtdc_babel)
    - [TimeTagger4](https://github.com/cronologic-de/xtdc_babel)
-   - [Ndigo6G-12](https://github.com/cronologic-de/ug_ndigo6g)
+   - [Ndigo6G-12](https://github.com/cronologic-de/ndigo6g_babel)
    - [Ndigo5G-10](https://github.com/cronologic-de/ndigo5g_babel)
 ---
 
