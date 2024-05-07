@@ -21,7 +21,7 @@ Here is just a brief overview of the necessary steps:
 
 
 1. Install the [prerequisites](#prerequisites)
-2. Clone the repository using `git clone https://github.com/cronologic-de/cronologic_linux_kernel.git`<br>Alternatively, download the `.zip`-file of the [latest release](https://github.com/cronologic-de/cronologic_linux_kernel/releases/latest) and unpack it
+2. Clone the repository using `git clone https://github.com/cronologic-de/cronologic_linux_kernel.git`<br>Alternatively, download the packed source code (`.zip` or `.tar.gz`) of the [latest release](https://github.com/cronologic-de/cronologic_linux_kernel/releases/latest) and unpack it
 3. In a terminal, navigate to the repository folder and [install](#dkms-installation) the project
 4. The necessary libraries for your particular cronologic device are provided in its respective GitHub repository
    - [xHPTDC8](https://github.com/cronologic-de/xhptdc8_babel)
