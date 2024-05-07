@@ -64,3 +64,6 @@ deploy_manifest.txt
 crono.info
 src/release_64/*.c
 src/release_64/*.h
+
+# Configuration folders
+.vscode/
