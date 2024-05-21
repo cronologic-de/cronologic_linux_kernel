@@ -2,8 +2,8 @@
 Linux Kernel Module that allows to map large PCIe DMA ring buffers.
 
 It has been developed by [cronologic GmbH & Co. KG](https://www.cronologic.de) to support the drivers for its time measurement devices such as:
-* [xHPTDC8](https://www.cronologic.de/products/tdcs/xhptdc8-pcie) 8 channel 13ps streaming time-to-digital converter
-* [xTDC4](https://www.cronologic.de/products/tdcs/xtdc4-pcie) 4 channel 13ps common-start time-to-digital converter
+* [xHPTDC8](https://www.cronologic.de/products/tdcs/xhptdc8-pcie) 8-channel 13 ps streaming time-to-digital converter
+* [xTDC4](https://www.cronologic.de/products/tdcs/xtdc4-pcie) 4-channel 13 ps common-start time-to-digital converter
 * [TimeTagger4](https://www.cronologic.de/products/tdcs/timetagger) 100/200/400/800 ps low cost TDCs
 * [Ndigo6G-12](https://www.cronologic.de/products/adcs/ndigo6g-12) 6.4 Gsps 12 bit ADC digitizer board with pulse extraction and 13ps TDC.
 * [Ndigo5G-10](https://www.cronologic.de/products/adcs/cronologic-ndigo5g-10) 5 Gsps 10 bit ADC digitizer board with pulse extraction
@@ -12,7 +12,7 @@ However, the module could be useful to any PCIe developer who is using large buf
 
 The user mode part of the driver is available in a [separate repository](https://github.com/cronologic-de/crono_pci_linux).
 
-The initial code has been written by [Bassem Ramzy](https://github.com/Bassem-Ramzy) with support from [Richard Weinberger](https://github.com/richardweinberger). It is licensed unter [GPL3](LICENSE).
+The initial code has been written by [Bassem Ramzy](https://github.com/Bassem-Ramzy) with support from [Richard Weinberger](https://github.com/richardweinberger). It is licensed under [GPL3](LICENSE).
 
 ## Setup for cronologic devices
 Detailed instructions on how to install the project are given under [Installation](#installation).
@@ -22,7 +22,7 @@ Here is just a brief overview of the necessary steps:
 
 1. Install the [prerequisites](#prerequisites)
 2. Clone the repository using `git clone https://github.com/cronologic-de/cronologic_linux_kernel.git`<br>Alternatively, download the packed source code (`.zip` or `.tar.gz`) of the [latest release](https://github.com/cronologic-de/cronologic_linux_kernel/releases/latest) and unpack it
-3. In a terminal, navigate to the repository folder and [install](#dkms-installation) the project
+3. In a terminal, navigate to the repository folder and install the project using `DKMS` (see [`DKMS` Installation](#dkms-installation))
 4. The necessary libraries for your particular cronologic device are provided in its respective GitHub repository. To this end, follow the instructions within the respective repository on how to install the user guide example.
    - [xHPTDC8](https://github.com/cronologic-de/xhptdc8_babel)
    - [xTDC4](https://github.com/cronologic-de/xtdc_babel)
@@ -140,7 +140,7 @@ sudo apt-get install dkms
 ```CMD
 sudo yum install gcc make
 ```
-- If the kernel development is not installed on your system for the current kernel verision, you can install it using `elrepo` as following
+- If the kernel development is not installed on your system for the current kernel version, you can install it using `elrepo` as following
 ```CMD
 sudo rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
 sudo yum install https://www.elrepo.org/elrepo-release-9.el9.elrepo.noarch.rpm
@@ -170,7 +170,7 @@ sudo yum install dkms
 ```CMD
 sudo yum install gcc make
 ```
-- If the kernel development is not installed on your system for the current kernel verision, you can install it as following
+- If the kernel development is not installed on your system for the current kernel version, you can install it as following
 ```CMD
 sudo yum install kernel-devel-$(uname -r)
 ```
@@ -235,7 +235,7 @@ sudo dkms install .
 
 ## Manual Installation
 
-> **Warning**
+> **Warning**<br>
 If you manually install the project, you need to **run the installation script with every kernel version used** on the machine, and **after every upgrade** to a new kernel version. We recommend installation using [`DKMS`](#dkms-installation).
 
 This installation of the driver module is very simple, and is mainly done via `insmod`, however, an installation script is provided to support wider options, like debug, add to boot, uninstall, etc...
@@ -281,7 +281,7 @@ sudo insmod ../../../build/linux/bin/release_64/crono_pci_drvmod.ko
 ```
 
 ### Hints
-* The script installs the `release` build of the driver, however, you can install the `debug` build of the driver, _that is built automatically by the script_, by replaceing the line:
+* The script installs the `release` build of the driver, however, you can install the `debug` build of the driver, _that is built automatically by the script_, by replacing the line:
 ```CMD
 DRVR_INST_SRC_PATH="../build/linux/bin/debug_64/$DRVR_FILE_NAME.ko"
 ```
@@ -293,7 +293,7 @@ The `debug` build of the driver module prints more information to the kernel mes
 
 * In case any error is encountered during installation, it should be either displayed explicitly on the terminal output or written in the error log file `errlog` found on the directory root.
 
-* If the script encountered any error, it's highly recommended to rerun the script using `-d` (_debug_) option, which should provide further information about the step and command caused that error, e.g.
+* If the script encountered any error, it's highly recommended rerunning the script using `-d` (_debug_) option, which should provide further information about the step and command caused that error, e.g.
 ```CMD
 sudo bash ./install.sh -d
 ```
@@ -371,7 +371,7 @@ Run `dkms` `build` command from the project folder, e.g.
 ```CMD
 sudo dkms build .
 ```
-`dkms.conf` uses the project `Makefile` found under `/src/release_64` to build the porject.
+`dkms.conf` uses the project `Makefile` found under `/src/release_64` to build the project.
 
 
 ## Clean the Output Files 
@@ -499,7 +499,7 @@ Sample code to call `ioctl`:
 
 * This example is provided for Scatter/Gather memory allocation, however, the driver provides functionality to lock contiguous memory directly as well using `CRONO_CONTIG_BUFFER_INFO` and `IOCTL_CRONO_LOCK_CONTIG_BUFFER`.
 
-## Miscellaneous Device Driver Naming Convension
+## Miscellaneous Device Driver Naming Convention
 The misc driver name is constructed following the macro [CRONO_CONSTRUCT_MISCDEV_NAME](https://github.com/cronologic-de/cronologic_linux_kernel/blob/main/include/crono_linux_kernel.h#L80)
 ```C
 crono_%02X_%02X%02X%02X%01X, device_id, domain, bus, dev, func
@@ -519,7 +519,7 @@ To satisfy DMA APIs "guards", the driver code takes the following into considera
 3. Uses `dma_map_sg` to map the Scatter/Gather table.
 
 ### `pin_user_pages` vs `get_user_pages`
-`pin_user_pages` is introduced, starting Kenrel Version 5.6, to resolve problems caused by `get_user_page` as per [this reference](https://lore.kernel.org/all/20200107224558.2362728-18-jhubbard@nvidia.com/T/#m0f6d21a9ae247a02a763f20c328b884b20f46e03).
+`pin_user_pages` is introduced, starting Kernel Version 5.6, to resolve problems caused by `get_user_page` as per [this reference](https://lore.kernel.org/all/20200107224558.2362728-18-jhubbard@nvidia.com/T/#m0f6d21a9ae247a02a763f20c328b884b20f46e03).
 
 The driver uses `pin_user_pages` for kernel versions >= 5.6, and uses `get_user_pages` for kernel versions < 5.6. 
 
