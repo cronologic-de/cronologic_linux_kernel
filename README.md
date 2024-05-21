@@ -66,23 +66,42 @@ Driver is tested on Kernel Versions starting **5.0**.
 
 ## Supported Distributions
 The driver is tested on the following **64-bit** distributions:
-- **Ubuntu** (ubuntu-20.04.1-desktop-amd64) 
+<details><summary><b>Ubuntu</b> (ubuntu-20.04.1-desktop-amd64)</summary>
+
   - 5.4.0-42-generic
   - 5.10.0-051000-generic
   - 5.11.0-37-generic
   - Later.
-- **CentOS** (CentOS-Stream-8, 9)(**):
+</details>
+
+
+<details><summary><b>CentOS</b> (CentOS-Stream-8, 9)(**)</summary>
+
   - 5.4.150-1.e18.elrepo.x86_64
   - 5.14.9-1.el8.elrepo.x86_64
   - Later.
-- **Fedora** (Fedora-Workstation-Live-x86_64-34-1.2)(**):
+</details>
+
+
+<details><summary><b>Fedora</b> (Fedora-Workstation-Live-x86_64-34-1.2)(**)</summary>
+
   - 5.14.9-200.fc34.x86_64
-- **Debian** (Debian GNU/Linux 11 (bullseye))(**)
+</details>
+
+
+<details><summary><b>Debian</b> (Debian GNU/Linux 11 (bullseye))(**)</summary>
+
   - 5.10.0-8-amd64
   - Later.
-- **openSUSE** Leap 15.3
+</details>
+
+
+
+<details><summary><b>openSUSE</b> Leap 15.3</summary>
+
   - 5.3.15-59.27-default
   - Later.
+</details>
 
 (**) Driver code is built successfully, however, the driver was not tested on the devices.
 
@@ -97,7 +116,8 @@ We recommend installing the project using `DKMS`, as outlined in [`DKMS` Install
 If you only want to build the project and not install it, you can find instructions [here](#build-the-project-without-installing-it).
 
 ## Prerequisites
-### Ubuntu 
+<details><summary><b>Ubuntu</b></summary>
+
 - Make sure you have **sudo** access.
 - Make sure that both `make` and `gcc` packages are installed, or install them using: 
 ```CMD
@@ -111,8 +131,10 @@ sudo apt-get install linux-headers-$(uname -r) linux-modules-$(uname -r)
 ```CMD
 sudo apt-get install dkms
 ```
+</details>
 
-### CentOS 
+<details><summary><b>CentOS</b></summary>
+
 - Make sure you have **sudo** access.
 - Make sure that both `make` and `gcc` packages are installed, or install them using: 
 ```CMD
@@ -139,8 +161,10 @@ sudo yum install dkms
 ```
 
 - For older CentOS versions, please refer to [ElRepo Project](http://elrepo.org/tiki/HomePage).
+</details>
 
-### Fedora
+<details><summary><b>Fedora</b></summary>
+
 - Make sure you have **sudo** access.
 - Make sure that both `make` and `gcc` packages are installed, or install them using: 
 ```CMD
@@ -154,8 +178,10 @@ sudo yum install kernel-devel-$(uname -r)
 ```CMD
 sudo yum install dkms
 ```
+</details>
 
-### Debian 
+<details><summary><b>Debian</b></summary>
+
 - Make sure you have **sudo** access.
 - Make sure that both `make` and `gcc` packages are installed, or install them using: 
 ```CMD
@@ -169,8 +195,10 @@ sudo apt-get install linux-headers-$(uname -r) linux-modules-$(uname -r)
 ```CMD
 sudo apt-get install dkms
 ```
+</details>
 
-### openSUSE
+<details><summary><b>openSUSE</b></summary>
+
 - Make sure you have **sudo** access.
 - Make sure that both `make` and `gcc` packages are installed, or install them using: 
 ```CMD
@@ -182,6 +210,7 @@ sudo zypper in kernel-devel kernel-default-devel
 sudo zypper up
 ```
 - If you want to use `dkms`, make sure it's installed, or install it from [openSUSE Packages](https://software.opensuse.org/package/dkms).
+</details>
 
 ### General Notes
 * You can check if `make` and `gcc` are installed by running the following commands:
