@@ -233,6 +233,8 @@ sudo dkms install .
 ```
 `dkms.conf` uses `install.sh` to install the project on the system and add module to the root.
 
+The scripts support building the module in both compressed format `.ko.zst` and uncompressed format `.ko`.
+
 ## Manual Installation
 
 > **Warning**<br>
@@ -323,6 +325,11 @@ Run `dkms` `remove` command from the project folder, e.g.
 sudo dkms remove crono_pci_drvmod/1.0.2 --all --force
 ```
 It will both uninstall the driver module from `dkms` tree, and remove the module from the system and root by calling `install.sh`.
+
+Sometimes the module file is not really deleted from the system, you might need to do the following to check it:
+```
+ls /lib/modules/$(uname -r)/kernel/drivers/pci/crono*
+```
 
 ## Uninstall Manually
 Run the following command to uninstall the driver (if installed), and remove it from boot (if it's there):
