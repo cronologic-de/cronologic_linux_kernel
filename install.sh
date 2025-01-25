@@ -10,6 +10,7 @@
 #
 # Functions  __________________________________________________________________
 #
+# DEBUG_CRONO=1
 
 # Command is passed as first parameter ($1).
 # Command run result is in $CMD_RESULT
@@ -80,8 +81,10 @@ crono_check_driver_in_boot_list() {
     if [ -n "$SYS_MOD_LOAD_FILE_D" ]; then
         # .d is used, just create the file in .d folder
         if [ -f $SYS_MOD_LOAD_FILE_D ]; then
+            [ -n "$DEBUG_CRONO" ] && echo ".d file $SYS_MOD_LOAD_FILE_D found\n"
             DRVR_IS_IN_STARTUP=1
         else
+            [ -n "$DEBUG_CRONO" ] && echo ".d file $SYS_MOD_LOAD_FILE_D not found\n"
             DRVR_IS_IN_STARTUP=
         fi
     else 
@@ -168,7 +171,7 @@ else
     if [ -z "$CRONO_DKMS_KERNELRELEASE" ]; then
     # DKMS is NOT the caller, get info normally
         TARGET_KERNEL_VERSION=`uname -r`
-        DRVR_INST_SRC_PATH="../build/linux/bin/debug_64/$DRVR_FILE_NAME.ko"
+        DRVR_INST_SRC_PATH="./build/linux/bin/debug_64/$DRVR_FILE_NAME.ko"
     else
     # DKMS IS the caller, use its info instead
     	TARGET_KERNEL_VERSION=$CRONO_DKMS_KERNELRELEASE   	
@@ -182,10 +185,10 @@ else
         if [ "$TARGET_KERNEL_VERSION" != "$RUNNING_KERNEL_VERSION" ]; then
             # DKMS installs for a target kernel version that is different
             # than the running kernel version, e.g. upgrading system.
+            [ -n "$DEBUG_CRONO" ] && printf "DKMS installs for a different target kernel version.\n"
             DMKS_DIFF_TARGET=1
         fi
     fi
-    [ -n "$DEBUG_CRONO" ] && printf "Crono: DRVR_INST_SRC_PATH: $DRVR_INST_SRC_PATH\n"
 fi
 KERNEL_BOOT_DIR="/lib/modules/$TARGET_KERNEL_VERSION/kernel/drivers/pci"
 
@@ -283,6 +286,8 @@ if [ -z "$UINSTALL_DRVR" ]; then
             # Built as .ko.zst, use it from now on instead of DRVR_INST_SRC_PATH value
             DRVR_INST_SRC_PATH=$DRVR_INST_SRC_PATH_ZST
             [ -n "$DEBUG_CRONO" ] && printf "Built as .zst: $DRVR_INST_SRC_PATH_ZST, use it.\n"
+        else
+            [ -n "$DEBUG_CRONO" ] && printf "Built as $DRVR_INST_SRC_PATH\n"
         fi
     fi
 fi
