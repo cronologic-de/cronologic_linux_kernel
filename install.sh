@@ -10,6 +10,7 @@
 #
 # Functions  __________________________________________________________________
 #
+# DEBUG_CRONO=1
 
 # Command is passed as first parameter ($1).
 # Command run result is in $CMD_RESULT
@@ -77,13 +78,25 @@ crono_check_driver_in_boot_directory()
 
 # Set $DRVR_IS_IN_STARTUP
 crono_check_driver_in_boot_list() {
-    [ -f $SYS_MOD_LOAD_FILE ] || echo "" >> $SYS_MOD_LOAD_FILE
-    crono_run_command "grep -w $DRVR_FILE_NAME $SYS_MOD_LOAD_FILE"
-    DRVR_IS_IN_STARTUP=$CMD_RESULT
-    if [ -n "$DRVR_IS_IN_STARTUP" ]; then
-        [ -n "$DEBUG_CRONO" ] && echo "Driver Name is found in boot $SYS_MOD_LOAD_FILE"
-    else
-        [ -n "$DEBUG_CRONO" ] && echo "Driver Name is not found in boot $SYS_MOD_LOAD_FILE"
+    if [ -n "$SYS_MOD_LOAD_FILE_D" ]; then
+        # .d is used, just create the file in .d folder
+        if [ -f $SYS_MOD_LOAD_FILE_D ]; then
+            [ -n "$DEBUG_CRONO" ] && echo ".d file $SYS_MOD_LOAD_FILE_D found\n"
+            DRVR_IS_IN_STARTUP=1
+        else
+            [ -n "$DEBUG_CRONO" ] && echo ".d file $SYS_MOD_LOAD_FILE_D not found\n"
+            DRVR_IS_IN_STARTUP=
+        fi
+    else 
+        # Module load file is used
+        [ -f $SYS_MOD_LOAD_FILE ] || echo "" >> $SYS_MOD_LOAD_FILE
+        crono_run_command "grep -w $DRVR_FILE_NAME $SYS_MOD_LOAD_FILE"
+        DRVR_IS_IN_STARTUP=$CMD_RESULT
+        if [ -n "$DRVR_IS_IN_STARTUP" ]; then
+            [ -n "$DEBUG_CRONO" ] && echo "Driver Name is found in boot $SYS_MOD_LOAD_FILE"
+        else
+            [ -n "$DEBUG_CRONO" ] && echo "Driver Name is not found in boot $SYS_MOD_LOAD_FILE"
+        fi
     fi
 }
 
@@ -126,7 +139,7 @@ OS_REDHAT=
 [ -f /etc/redhat-release ] && OS_REDHAT=1 
 if [ -n "$OS_REDHAT" ] ; then
     # Redhat-based dist
-    SYS_MOD_LOAD_FILE=/usr/lib/modules-load.d/cronologic.conf
+    SYS_MOD_LOAD_FILE_D=/usr/lib/modules-load.d/cronologic.conf
     if grep -q "Rocky" /etc/redhat-release; then
     	IS_ROCKY="1"
     fi
@@ -134,9 +147,17 @@ if [ -n "$OS_REDHAT" ] ; then
     FILE_EXT=.ko.xz
 else
     # Debian-based dist
-    SYS_MOD_LOAD_FILE=/etc/modules
+    INIT_SYSTEM=$(ps -p 1 -o comm=)
+    if [[ "$INIT_SYSTEM" == "systemd" ]]; then
+        # `/etc/modules` is obsolete, use `modules-load.d` instead
+        SYS_MOD_LOAD_FILE_D=/etc/modules-load.d/cronologic.conf
+    else
+        # `/etc/modules` is used, INIT_SYSTEM is supposed to be "init"
+        SYS_MOD_LOAD_FILE=/etc/modules
+    fi
+    # Initial extension value, for DKMS we will need to check if built as .zst
     FILE_EXT=.ko
-fi    
+fi
 
 MACHINE_TYPE=`uname -m`
 
@@ -150,23 +171,24 @@ else
     if [ -z "$CRONO_DKMS_KERNELRELEASE" ]; then
     # DKMS is NOT the caller, get info normally
         TARGET_KERNEL_VERSION=`uname -r`
-        DRVR_INST_SRC_PATH="../build/linux/bin/debug_64/$DRVR_FILE_NAME.ko"
+        DRVR_INST_SRC_PATH="./build/linux/bin/debug_64/$DRVR_FILE_NAME.ko"
     else
     # DKMS IS the caller, use its info instead
-    	TARGET_KERNEL_VERSION=$CRONO_DKMS_KERNELRELEASE
-    	
-	if [ -n "$OS_REDHAT" ] ; then
-  	    DRVR_INST_SRC_PATH="/lib/modules/$TARGET_KERNEL_VERSION/extra/$DRVR_FILE_NAME$FILE_EXT"
-	else
-	    DRVR_INST_SRC_PATH="/lib/modules/$TARGET_KERNEL_VERSION/updates/dkms/$DRVR_FILE_NAME$FILE_EXT"
-	fi    
+    	TARGET_KERNEL_VERSION=$CRONO_DKMS_KERNELRELEASE   	
+        if [ -n "$OS_REDHAT" ] ; then
+            DRVR_INST_SRC_PATH="/lib/modules/$TARGET_KERNEL_VERSION/extra/$DRVR_FILE_NAME$FILE_EXT"
+        else
+            DRVR_INST_SRC_PATH="/lib/modules/$TARGET_KERNEL_VERSION/updates/dkms/$DRVR_FILE_NAME$FILE_EXT"
+            # Set DRVR_INST_SRC_PATH_ZST value to check it in case built
+            DRVR_INST_SRC_PATH_ZST="/lib/modules/$TARGET_KERNEL_VERSION/updates/dkms/$DRVR_FILE_NAME.ko.zst"
+        fi    
         if [ "$TARGET_KERNEL_VERSION" != "$RUNNING_KERNEL_VERSION" ]; then
             # DKMS installs for a target kernel version that is different
             # than the running kernel version, e.g. upgrading system.
+            [ -n "$DEBUG_CRONO" ] && printf "DKMS installs for a different target kernel version.\n"
             DMKS_DIFF_TARGET=1
         fi
     fi
-    [ -n "$DEBUG_CRONO" ] && printf "Crono: DRVR_INST_SRC_PATH: $DRVR_INST_SRC_PATH\n"
 fi
 KERNEL_BOOT_DIR="/lib/modules/$TARGET_KERNEL_VERSION/kernel/drivers/pci"
 
@@ -257,6 +279,16 @@ if [ -z "$UINSTALL_DRVR" ]; then
     else
     # Don't build, as DKMS calls make, and .ko file is got from there instead
 	    printf "Crono: Kernel Module will be got from DKMS build folder instead of building it.\n"
+
+        # Use .zst path instead, if needed
+        # DRVR_INST_SRC_PATH_ZST should have been set for DKMS case, check it
+        if [ -f "$DRVR_INST_SRC_PATH_ZST" ]; then
+            # Built as .ko.zst, use it from now on instead of DRVR_INST_SRC_PATH value
+            DRVR_INST_SRC_PATH=$DRVR_INST_SRC_PATH_ZST
+            [ -n "$DEBUG_CRONO" ] && printf "Built as .zst: $DRVR_INST_SRC_PATH_ZST, use it.\n"
+        else
+            [ -n "$DEBUG_CRONO" ] && printf "Built as $DRVR_INST_SRC_PATH\n"
+        fi
     fi
 fi
 
@@ -304,12 +336,23 @@ if [ -n "$UINSTALL_DRVR" ] && [ -z "$DMKS_DIFF_TARGET" ]; then
     # Remove file from boot modules list if found
     crono_check_driver_in_boot_list
     if [ -n "$DRVR_IS_IN_STARTUP" ]; then
-        [ -n "$DEBUG_CRONO" ] && printf "Crono: removing text <%s> from $SYS_MOD_LOAD_FILE\n" "$DRVR_FILE_NAME"
-        crono_run_command "sudo sed -i s/$DRVR_FILE_NAME// $SYS_MOD_LOAD_FILE"
-        crono_check_driver_in_boot_list
-        if [ -n "$DRVR_IS_IN_STARTUP" ]; then
-            echo "Crono: error removing the file from boot list"
-            ERR_REMOVING_FROM_BOOT=1
+        if [ -n "$SYS_MOD_LOAD_FILE_D" ]; then
+            # .d is used, just create the file in .d folder
+            if [ -f $SYS_MOD_LOAD_FILE_D ]; then
+                rm $SYS_MOD_LOAD_FILE_D
+                [ -n "$DEBUG_CRONO" ] && printf "Crono: removed $SYS_MOD_LOAD_FILE_D\n"
+            else
+                [ -n "$DEBUG_CRONO" ] && printf "Crono: $SYS_MOD_LOAD_FILE_D not found to be removed\n"
+            fi
+        else
+            # Module load file is used
+            [ -n "$DEBUG_CRONO" ] && printf "Crono: removing text <%s> from $SYS_MOD_LOAD_FILE\n" "$DRVR_FILE_NAME"
+            crono_run_command "sudo sed -i s/$DRVR_FILE_NAME// $SYS_MOD_LOAD_FILE"
+            crono_check_driver_in_boot_list
+            if [ -n "$DRVR_IS_IN_STARTUP" ]; then
+                echo "Crono: error removing the file from boot list"
+                ERR_REMOVING_FROM_BOOT=1
+            fi
         fi
     fi
     [ -z "$ERR_REMOVING_FROM_BOOT" ] && echo "done"
@@ -401,8 +444,15 @@ if [ -z "$DONT_ADD_TO_BOOT" ]; then
     # Add driver to boot list  ________________________________________________
     crono_check_driver_in_boot_list
     if [ -z "$DRVR_IS_IN_STARTUP" ]; then
-        echo $DRVR_FILE_NAME | sudo tee -a $SYS_MOD_LOAD_FILE > /dev/null
-        [ -n "$DEBUG_CRONO" ] && echo "Crono: Driver Name is successfully added to boot $SYS_MOD_LOAD_FILE"
+        if [ -n "$SYS_MOD_LOAD_FILE_D" ]; then
+            # .d is used, just create the file in .d folder
+            echo "" >> $SYS_MOD_LOAD_FILE_D
+            [ -n "$DEBUG_CRONO" ] && echo "Crono: Driver file $SYS_MOD_LOAD_FILE_D is successfully added to boot"
+        else
+            # Module load file is used, DRVR_FILE_NAME should be set then
+            echo $DRVR_FILE_NAME | sudo tee -a $SYS_MOD_LOAD_FILE > /dev/null
+            [ -n "$DEBUG_CRONO" ] && echo "Crono: Driver Name is successfully added to boot $SYS_MOD_LOAD_FILE"
+        fi
     fi
 
     echo "done"

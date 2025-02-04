@@ -111,7 +111,7 @@ struct crono_miscdev {
  * Maximum Device ID value, should be synchronized with Device IDs
  * CRONO_DEVICE_xxx mentioned above
  */
-#define CRONO_DEVICE_DEV_ID_MAX_COUNT CRONO_DEVICE_NDIGO6G12
+#define CRONO_DEVICE_DEV_ID_MAX_COUNT 32
 
 typedef uint64_t DMA_ADDR;
 
