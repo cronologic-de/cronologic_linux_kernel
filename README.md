@@ -331,6 +331,15 @@ Sometimes the module file is not really deleted from the system, you might need 
 ls /lib/modules/$(uname -r)/kernel/drivers/pci/crono*
 ```
 
+### `DKMS` Cleanup
+In case of major upgrade and the need to _full_ cleanup, we might need to use the following command with the proper version:
+```
+sudo dkms remove crono_pci_drvmod/1.4.0 --all --force
+sudo rm -rf /usr/src/crono_pci_drvmod-1.4.0 # Remove the source
+sudo rm -rf build # On `cronologic_linux_kernel` folder
+sudo dkms install . # Install again
+```
+
 ## Uninstall Manually
 Run the following command to uninstall the driver (if installed), and remove it from boot (if it's there):
 ```CMD
