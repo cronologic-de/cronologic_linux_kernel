@@ -454,37 +454,43 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
         start_addr_to_pin = (__u64)buff_wrapper->buff_info.addr;
 #ifndef OLD_KERNEL_FOR_PIN
         // https://elixir.bootlin.com/linux/v5.6/source/include/linux/mm.h#L1508
-        // Pin buffer blocks, each of size = (nr_per_call * PAGE_SIZE) in every
-        // iteration to its corresponding page address in
-        // buff_wrapper->kernel_pages
+        // Pin buffer blocks, each of size = (nr_per_call *
+        // buff_wrapper->buff_info.page_size) in every iteration to its
+        // corresponding page address in buff_wrapper->kernel_pages
         for (buff_wrapper->pinned_pages_nr = 0;
              start_addr_to_pin <
              (__u64)buff_wrapper->buff_info.addr + buff_wrapper->buff_info.size;
              start_addr_to_pin = next_pages_addr) {
                 // Next pages chunk starts after `nr_per_call` pages bytes
-                next_pages_addr = start_addr_to_pin + nr_per_call * PAGE_SIZE;
+                next_pages_addr =
+                    start_addr_to_pin +
+                    nr_per_call * buff_wrapper->buff_info.page_size;
                 if (next_pages_addr > ((__u64)buff_wrapper->buff_info.addr +
                                        buff_wrapper->buff_info.size))
                 // Exceeded the buffer size
                 {
                         next_pages_addr = (__u64)buff_wrapper->buff_info.addr +
                                           buff_wrapper->buff_info.size;
-                        nr_per_call =
-                            (next_pages_addr - start_addr_to_pin) / PAGE_SIZE;
+                        nr_per_call = (next_pages_addr - start_addr_to_pin) /
+                                      buff_wrapper->buff_info.page_size;
                 }
 #ifndef KERNEL_6_5_OR_LATER
 #pragma message("Kernel version is older than 6.5 but newer than 5.5")
                 actual_pinned_nr_of_call = pin_user_pages(
                     start_addr_to_pin, nr_per_call, FOLL_WRITE,
                     (struct page **)(buff_wrapper->kernel_pages) +
-                        buff_wrapper->pinned_pages_nr, NULL);
-#else                        
+                        buff_wrapper->pinned_pages_nr,
+                    NULL);
+#else
                 actual_pinned_nr_of_call = pin_user_pages(
-                    start_addr_to_pin, nr_per_call, FOLL_WRITE,
+                    start_addr_to_pin, nr_per_call,
+                    FOLL_WRITE |
+                        (buff_wrapper->buff_info.page_size > 4096 // 2MB
+                             ? FOLL_LONGTERM
+                             : 0),
                     (struct page **)(buff_wrapper->kernel_pages) +
                         buff_wrapper->pinned_pages_nr);
-#endif                        
-
+#endif
 
                 if (actual_pinned_nr_of_call < 0) {
                         // Error
@@ -758,10 +764,10 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
 #else
         // If the physical address got by `PFN_PHYS`, didn't work, then,
         // `__sg_alloc_table_from_pages` should be called with
-        // `PAGE_SIZE` parameter, then `sg_dma_address` should be used
-        // to fill in the pages addresses, however, it's not guaranteed
-        // that the buffers coming out of `dma_map_sg` are 1-PAGE-ONLY
-        // SIZE.
+        // `buff_wrapper->buff_info.page_size` parameter, then `sg_dma_address`
+        // should be used to fill in the pages addresses, however, it's not
+        // guaranteed that the buffers coming out of `dma_map_sg` are
+        // 1-PAGE-ONLY SIZE.
         sg_from_pages = __sg_alloc_table_from_pages(
             sgt, // The sg table header to use
             (struct page **)buff_wrapper
@@ -772,7 +778,7 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
                // buffer
             buff_wrapper->buff_info.size, // Number of valid bytes in
                                           // the buffer (after offset)
-            PAGE_SIZE, NULL, 0, GFP_KERNEL);
+            buff_wrapper->buff_info.page_size, NULL, 0, GFP_KERNEL);
         if (PTR_ERR_OR_ZERO(sg_from_pages))
 #endif
         {
@@ -834,8 +840,8 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
                                        page_nr,
                                        buff_wrapper->buff_info.pages_count);
                         }
-                        len -= 4096;  // Replace by PAGE_SIZE
-                        addr += 4096; // Replace by PAGE_SIZE
+                        len -= buff_wrapper->buff_info.page_size;
+                        addr += buff_wrapper->buff_info.page_size;
                 }
         }
         if (page_nr != buff_wrapper->buff_info.pages_count) {
@@ -1186,6 +1192,7 @@ _crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
         // Validate address
         LOGERR_RET_EINVAL_IF_NULL(buff_wrapper->buff_info.addr,
                                   "Invalid buffer to be locked");
+
         // Validate passed buffer size, and `pages_count` value is
         // consistent with the passed buffer size
         if (buff_wrapper->buff_info.size > ULONG_MAX) {
@@ -1196,11 +1203,13 @@ _crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
                 goto func_err;
         }
         if (buff_wrapper->buff_info.pages_count !=
-            DIV_ROUND_UP(buff_wrapper->buff_info.size, PAGE_SIZE)) {
+            DIV_ROUND_UP(buff_wrapper->buff_info.size,
+                         buff_wrapper->buff_info.page_size)) {
                 pr_err("Error: incorrect passed pages count <%d>, "
                        "expected <%ld>",
                        buff_wrapper->buff_info.pages_count,
-                       DIV_ROUND_UP(buff_wrapper->buff_info.size, PAGE_SIZE));
+                       DIV_ROUND_UP(buff_wrapper->buff_info.size,
+                                    buff_wrapper->buff_info.page_size));
                 ret = -ENOMEM;
                 goto func_err;
         }

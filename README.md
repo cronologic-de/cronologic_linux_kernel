@@ -547,7 +547,7 @@ Using `sg_dma_address` is not applicable by “our driver” design when using `
 
 When using `sg_alloc_table_from_pages` contiguous ranges of the pages are squashed into a single scatterlist entry up to the maximum size, hence, nents are not one-to-one mapped with the pages, so, we can’t really get use of `sg_dma_address` for page physical address.
 
-As per Linux documentation, the number of pages returned by `sg_alloc_table_from_pages` is not necessarily equal to the number of input pages, actually in practice it’s much less, while the driver needs the physical address of every page of size `4096`. 
+As per Linux documentation, the number of pages returned by `sg_alloc_table_from_pages` is not necessarily equal to the number of input pages, actually in practice it’s much less, while the driver needs the physical address of every page of size `4096`/`2MB`. 
 
 Since the driver uses `sg_alloc_table_from_pages`, accordingly, the driver uses `PFN_PHYS(page_to_pfn())` to get the memory physical address.
 
