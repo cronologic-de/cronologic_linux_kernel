@@ -80,7 +80,8 @@ static int _crono_get_DBDF_from_dev(struct pci_dev *dev,
  * @return `CRONO_SUCCESS` in case of no error, or `errno` in case of error.
  */
 static int _crono_miscdev_ioctl_lock_sg_buffer(struct file *filp,
-                                               unsigned long arg);
+                                               unsigned long arg,
+                                               size_t page_size);
 
 /**
  * @brief
@@ -142,7 +143,8 @@ static int _crono_miscdev_ioctl_unlock_contig_buffer(struct file *filp,
  */
 static int
 _crono_miscdev_ioctl_generate_sg(struct file *filp,
-                                 CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper);
+                                 CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper,
+                                 size_t page_size);
 
 /**
  * Internal function called by `_crono_miscdev_ioctl_lock_sg_buffer`.
@@ -182,7 +184,7 @@ _crono_miscdev_ioctl_generate_sg(struct file *filp,
 static int
 _crono_miscdev_ioctl_pin_buffer(struct file *filp,
                                 CRONO_SG_BUFFER_INFO_WRAPPER *buff_wrapper,
-                                unsigned long nr_per_call);
+                                unsigned long nr_per_call, size_t page_size);
 
 /**
  * For CRONO_SG_BUFFER_INFO_WRAPPER:
@@ -268,7 +270,8 @@ static int _crono_get_crono_dev_from_filp(struct file *filp,
  */
 static int
 _crono_init_sg_buff_wrapper(struct file *filp, unsigned long arg,
-                            CRONO_SG_BUFFER_INFO_WRAPPER **pp_buff_wrapper);
+                            CRONO_SG_BUFFER_INFO_WRAPPER **pp_buff_wrapper,
+                            size_t page_size);
 
 static int crono_driver_probe(struct pci_dev *dev,
                               const struct pci_device_id *id);
