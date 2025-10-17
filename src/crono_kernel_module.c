@@ -6,7 +6,7 @@
 //
 MODULE_DESCRIPTION("cronologic PCI driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.4.1");
+MODULE_VERSION("1.4.2");
 
 #ifndef CRONO_KERNEL_MODE
 #pragma message("CRONO_KERNEL_MODE must be defined in the kernel module")
@@ -474,12 +474,12 @@ _crono_miscdev_ioctl_pin_buffer(struct file *filp,
                 }
 #ifndef KERNEL_6_5_OR_LATER
 #pragma message("Kernel version is older than 6.5 but newer than 5.5")
-                actual_pinned_nr_of_call = pin_user_pages(
+                actual_pinned_nr_of_call = pin_user_pages_fast(
                     start_addr_to_pin, nr_per_call, FOLL_WRITE,
                     (struct page **)(buff_wrapper->kernel_pages) +
                         buff_wrapper->pinned_pages_nr, NULL);
 #else                        
-                actual_pinned_nr_of_call = pin_user_pages(
+                actual_pinned_nr_of_call = pin_user_pages_fast(
                     start_addr_to_pin, nr_per_call, FOLL_WRITE,
                     (struct page **)(buff_wrapper->kernel_pages) +
                         buff_wrapper->pinned_pages_nr);
